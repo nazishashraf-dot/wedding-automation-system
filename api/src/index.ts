@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import clientsRouter from "./routes/clients";
 import weddingsRouter from "./routes/weddings";
 import vendorsRouter from "./routes/vendors";
+import tasksRouter from "./routes/tasks";
 import { errorHandler } from "./errors";
 
 dotenv.config();
@@ -21,6 +22,7 @@ app.get("/health", (_req, res) => {
 app.use("/clients", clientsRouter);
 app.use("/weddings", weddingsRouter);
 app.use("/vendors", vendorsRouter);
+app.use("/tasks", tasksRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: { message: "Not found" } });

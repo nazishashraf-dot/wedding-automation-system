@@ -42,6 +42,23 @@ enum VendorLinkStatus {
   confirmed
 }
 
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+enum TaskSource {
+  auto_generated
+  manual
+}
+
 model Client {
   id           String       @id @default(uuid())
   fullName     String
@@ -72,6 +89,7 @@ model Wedding {
   updatedAt       DateTime       @updatedAt
 
   vendors         WeddingVendor[]
+  tasks           Task[]
 
   @@map("weddings")
 }
@@ -101,4 +119,42 @@ model WeddingVendor {
 
   @@id([weddingId, vendorId])
   @@map("wedding_vendors")
+}
+
+model Task {
+  id              String        @id @default(uuid())
+  weddingId       String
+  wedding         Wedding       @relation(fields: [weddingId], references: [id])
+  timelineRuleId  String?
+  timelineRule    TimelineRule? @relation(fields: [timelineRuleId], references: [id], onDelete: SetNull)
+  title           String
+  description     String?
+  dueDate         DateTime
+  status          TaskStatus    @default(todo)
+  priority        TaskPriority  @default(medium)
+  assignee        String?
+  source          TaskSource    @default(manual)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("tasks")
+}
+
+// Configurable template of standard milestones. Editable without touching
+// application code — this is what POST /weddings and the regenerate-timeline
+// endpoint read from to auto-generate a wedding's task list.
+model TimelineRule {
+  id                  String       @id @default(uuid())
+  label               String
+  monthsBeforeWedding Int?
+  weeksBeforeWedding  Int?
+  taskTitle           String
+  taskDescription     String?
+  defaultPriority     TaskPriority @default(medium)
+  isActive            Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+
+  tasks               Task[]
+
+  @@map("timeline_rules")
 }

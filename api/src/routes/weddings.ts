@@ -2,7 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { asyncHandler, notFound, validateBody } from "../errors";
-import { param } from "../utils";
+import { param, withOverdueFlag } from "../utils";
+import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../timeline";
 
 const router = Router();
 
@@ -15,6 +16,16 @@ const planningStatusEnum = z.enum([
 ]);
 
 const vendorLinkStatusEnum = z.enum(["contacted", "quoted", "confirmed"]);
+
+const taskPriorityEnum = z.enum(["low", "medium", "high"]);
+
+const createTaskSchema = z.object({
+  title: z.string().min(1, "title is required"),
+  description: z.string().optional(),
+  dueDate: z.coerce.date(),
+  priority: taskPriorityEnum.optional(),
+  assignee: z.string().optional(),
+});
 
 const createWeddingSchema = z.object({
   clientId: z.string().uuid("clientId must be a valid UUID"),
@@ -91,6 +102,7 @@ router.post(
       data: req.body,
       include: weddingDetailInclude,
     });
+    await generateTimelineForWedding(wedding.id, wedding.weddingDate);
     res.status(201).json(wedding);
   })
 );
@@ -99,12 +111,66 @@ router.patch(
   "/:id",
   validateBody(updateWeddingSchema),
   asyncHandler(async (req, res) => {
+    const id = param(req, "id");
+    const existing = await prisma.wedding.findUnique({ where: { id } });
+    if (!existing) throw notFound("Wedding");
+
     const wedding = await prisma.wedding.update({
-      where: { id: param(req, "id") },
+      where: { id },
       data: req.body,
       include: weddingDetailInclude,
     });
+
+    if (
+      req.body.weddingDate &&
+      existing.weddingDate.getTime() !== wedding.weddingDate.getTime()
+    ) {
+      await recalculateAutoTaskDueDates(id, wedding.weddingDate);
+    }
+
     res.json(wedding);
+  })
+);
+
+router.post(
+  "/:id/regenerate-timeline",
+  asyncHandler(async (req, res) => {
+    const id = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id } });
+    if (!wedding) throw notFound("Wedding");
+
+    const result = await generateTimelineForWedding(id, wedding.weddingDate);
+    res.json(result);
+  })
+);
+
+router.get(
+  "/:id/tasks",
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const tasks = await prisma.task.findMany({
+      where: { weddingId },
+      orderBy: { dueDate: "asc" },
+    });
+    res.json(tasks.map(withOverdueFlag));
+  })
+);
+
+router.post(
+  "/:id/tasks",
+  validateBody(createTaskSchema),
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const task = await prisma.task.create({
+      data: { ...req.body, weddingId, source: "manual", status: "todo" },
+    });
+    res.status(201).json(withOverdueFlag(task));
   })
 );
 

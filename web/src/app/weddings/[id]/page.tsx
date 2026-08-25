@@ -3,11 +3,16 @@
 import { useEffect, useState } from "react";
 import {
   ApiError,
+  Task,
   Vendor,
   Wedding,
+  createWeddingTask,
   getWedding,
   linkVendorToWedding,
   listVendors,
+  listWeddingTasks,
+  regenerateTimeline,
+  updateTask,
   updateWedding,
   updateWeddingVendorLink,
 } from "@/lib/api";
@@ -15,6 +20,8 @@ import {
   formatDate,
   formatMoney,
   planningStatusLabel,
+  taskPriorityLabel,
+  taskStatusLabel,
   vendorCategoryLabel,
 } from "@/lib/format";
 
@@ -41,6 +48,19 @@ export default function WeddingDetailPage({
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [taskError, setTaskError] = useState<string | null>(null);
+
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
+  const [taskAssignee, setTaskAssignee] = useState("");
+  const [addingTask, setAddingTask] = useState(false);
+
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateMessage, setRegenerateMessage] = useState<string | null>(null);
+
   async function refresh() {
     try {
       const data = await getWedding(id);
@@ -53,8 +73,19 @@ export default function WeddingDetailPage({
     }
   }
 
+  async function refreshTasks() {
+    try {
+      const data = await listWeddingTasks(id);
+      setTasks(data);
+      setTaskError(null);
+    } catch (err) {
+      setTaskError(err instanceof ApiError ? err.message : "Failed to load tasks");
+    }
+  }
+
   useEffect(() => {
     refresh();
+    refreshTasks();
     listVendors()
       .then(setAllVendors)
       .catch(() => {});
@@ -103,6 +134,57 @@ export default function WeddingDetailPage({
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to update vendor status");
+    }
+  }
+
+  async function handleTaskStatusChange(taskId: string, status: string) {
+    try {
+      await updateTask(taskId, { status: status as "todo" | "in_progress" | "done" });
+      await refreshTasks();
+    } catch (err) {
+      setTaskError(err instanceof ApiError ? err.message : "Failed to update task");
+    }
+  }
+
+  async function handleAddTask(e: React.FormEvent) {
+    e.preventDefault();
+    setAddingTask(true);
+    setTaskError(null);
+    try {
+      await createWeddingTask(id, {
+        title: taskTitle,
+        dueDate: taskDueDate,
+        priority: taskPriority,
+        assignee: taskAssignee || undefined,
+      });
+      setTaskTitle("");
+      setTaskDueDate("");
+      setTaskPriority("medium");
+      setTaskAssignee("");
+      setShowTaskForm(false);
+      await refreshTasks();
+    } catch (err) {
+      setTaskError(err instanceof ApiError ? err.message : "Failed to add task");
+    } finally {
+      setAddingTask(false);
+    }
+  }
+
+  async function handleRegenerateTimeline() {
+    setRegenerating(true);
+    setRegenerateMessage(null);
+    try {
+      const result = await regenerateTimeline(id);
+      setRegenerateMessage(
+        `${result.created} task${result.created === 1 ? "" : "s"} added` +
+          (result.skippedExisting > 0 ? `, ${result.skippedExisting} already existed` : "") +
+          (result.skippedPast > 0 ? `, ${result.skippedPast} skipped (past due)` : "")
+      );
+      await refreshTasks();
+    } catch (err) {
+      setTaskError(err instanceof ApiError ? err.message : "Failed to regenerate timeline");
+    } finally {
+      setRegenerating(false);
     }
   }
 
@@ -176,6 +258,145 @@ export default function WeddingDetailPage({
           Currently: {formatMoney(wedding.budgetSpent)} spent of{" "}
           {formatMoney(wedding.budgetTotal)}
         </p>
+      </section>
+
+      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-neutral-900">Tasks</h2>
+          <div className="flex items-center gap-3">
+            {regenerateMessage && (
+              <span className="text-xs text-neutral-500">{regenerateMessage}</span>
+            )}
+            <button
+              onClick={handleRegenerateTimeline}
+              disabled={regenerating}
+              className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100 disabled:opacity-50"
+            >
+              {regenerating ? "Regenerating..." : "Regenerate timeline"}
+            </button>
+            <button
+              onClick={() => setShowTaskForm((s) => !s)}
+              className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
+            >
+              {showTaskForm ? "Cancel" : "+ Add Task"}
+            </button>
+          </div>
+        </div>
+
+        {showTaskForm && (
+          <form
+            onSubmit={handleAddTask}
+            className="mb-4 grid grid-cols-1 gap-3 rounded-md border border-neutral-100 bg-neutral-50 p-3 sm:grid-cols-4"
+          >
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Title</label>
+              <input
+                required
+                className={inputClass}
+                value={taskTitle}
+                onChange={(e) => setTaskTitle(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Due date</label>
+              <input
+                required
+                type="date"
+                className={inputClass}
+                value={taskDueDate}
+                onChange={(e) => setTaskDueDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Priority</label>
+              <select
+                className={inputClass}
+                value={taskPriority}
+                onChange={(e) => setTaskPriority(e.target.value as "low" | "medium" | "high")}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-neutral-600">
+                Assignee (optional)
+              </label>
+              <input
+                className={inputClass}
+                value={taskAssignee}
+                onChange={(e) => setTaskAssignee(e.target.value)}
+              />
+            </div>
+            <div className="flex items-end sm:col-span-2">
+              <button
+                type="submit"
+                disabled={addingTask}
+                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {addingTask ? "Saving..." : "Save Task"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {taskError && <p className="mb-2 text-sm text-red-600">{taskError}</p>}
+
+        <div className="overflow-hidden rounded-md border border-neutral-100">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+              <tr>
+                <th className="px-3 py-2">Title</th>
+                <th className="px-3 py-2">Due date</th>
+                <th className="px-3 py-2">Priority</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Source</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {tasks?.map((task) => (
+                <tr key={task.id}>
+                  <td className="px-3 py-2 font-medium">{task.title}</td>
+                  <td
+                    className={`px-3 py-2 ${
+                      task.overdue ? "font-medium text-red-600" : ""
+                    }`}
+                  >
+                    {formatDate(task.dueDate)}
+                    {task.overdue && (
+                      <span className="ml-1.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                        Overdue
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">{taskPriorityLabel(task.priority)}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={task.status}
+                      onChange={(e) => handleTaskStatusChange(task.id, e.target.value)}
+                      className="rounded-md border border-neutral-300 px-2 py-1 text-xs"
+                    >
+                      <option value="todo">{taskStatusLabel("todo")}</option>
+                      <option value="in_progress">{taskStatusLabel("in_progress")}</option>
+                      <option value="done">{taskStatusLabel("done")}</option>
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-neutral-400">
+                    {task.source === "auto_generated" ? "Auto" : "Manual"}
+                  </td>
+                </tr>
+              ))}
+              {tasks && tasks.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-3 py-4 text-center text-neutral-400">
+                    No tasks yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4">

@@ -11,6 +11,9 @@ export type VendorCategory =
   | "hair_makeup"
   | "other";
 export type VendorLinkStatus = "contacted" | "quoted" | "confirmed";
+export type TaskStatus = "todo" | "in_progress" | "done";
+export type TaskPriority = "low" | "medium" | "high";
+export type TaskSource = "auto_generated" | "manual";
 
 export interface WeddingSummary {
   id: string;
@@ -69,6 +72,33 @@ export interface Wedding {
   updatedAt: string;
   client?: ClientSummary;
   vendors?: WeddingVendorLink[];
+}
+
+export interface Task {
+  id: string;
+  weddingId: string;
+  timelineRuleId: string | null;
+  title: string;
+  description: string | null;
+  dueDate: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignee: string | null;
+  source: TaskSource;
+  createdAt: string;
+  updatedAt: string;
+  overdue: boolean;
+  wedding?: {
+    id: string;
+    weddingDate: string;
+    client: ClientSummary;
+  };
+}
+
+export interface RegenerateTimelineResult {
+  created: number;
+  skippedPast: number;
+  skippedExisting: number;
 }
 
 export class ApiError extends Error {
@@ -161,6 +191,30 @@ export const updateWeddingVendorLink = (
     method: "PATCH",
     body: JSON.stringify(data),
   });
+
+export const regenerateTimeline = (weddingId: string) =>
+  request<RegenerateTimelineResult>(`/weddings/${weddingId}/regenerate-timeline`, {
+    method: "POST",
+  });
+
+// Tasks
+export const listWeddingTasks = (weddingId: string) =>
+  request<Task[]>(`/weddings/${weddingId}/tasks`);
+export const listTasks = (params?: { status?: TaskStatus; overdue?: boolean }) => {
+  const search = new URLSearchParams();
+  if (params?.status) search.set("status", params.status);
+  if (params?.overdue !== undefined) search.set("overdue", String(params.overdue));
+  const qs = search.toString();
+  return request<Task[]>(`/tasks${qs ? `?${qs}` : ""}`);
+};
+export const createWeddingTask = (
+  weddingId: string,
+  data: { title: string; description?: string; dueDate: string; priority?: TaskPriority; assignee?: string }
+) => request<Task>(`/weddings/${weddingId}/tasks`, { method: "POST", body: JSON.stringify(data) });
+export const updateTask = (
+  id: string,
+  data: Partial<{ status: TaskStatus; priority: TaskPriority; assignee: string; dueDate: string }>
+) => request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 
 // Vendors
 export const listVendors = (category?: VendorCategory) =>

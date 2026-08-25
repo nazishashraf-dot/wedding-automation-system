@@ -1,14 +1,100 @@
-import dotenv from "dotenv";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../src/generated/prisma/client";
+import { prisma } from "../src/db";
+import { generateTimelineForWedding } from "../src/timeline";
 
-dotenv.config();
-
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
+const TIMELINE_RULES: Array<{
+  label: string;
+  monthsBeforeWedding?: number;
+  weeksBeforeWedding?: number;
+  taskTitle: string;
+  taskDescription?: string;
+  defaultPriority: "low" | "medium" | "high";
+}> = [
+  {
+    label: "Book venue",
+    monthsBeforeWedding: 12,
+    taskTitle: "Book venue",
+    taskDescription: "Tour and confirm the ceremony/reception venue.",
+    defaultPriority: "high",
+  },
+  {
+    label: "Book major vendors",
+    monthsBeforeWedding: 10,
+    taskTitle: "Book major vendors (caterer, photographer)",
+    defaultPriority: "high",
+  },
+  {
+    label: "Book florist and entertainment",
+    monthsBeforeWedding: 9,
+    taskTitle: "Book florist and entertainment (DJ/band)",
+    defaultPriority: "medium",
+  },
+  {
+    label: "Send save-the-dates",
+    monthsBeforeWedding: 6,
+    taskTitle: "Send save-the-dates",
+    defaultPriority: "medium",
+  },
+  {
+    label: "Order wedding attire",
+    monthsBeforeWedding: 5,
+    taskTitle: "Order/shop for wedding attire",
+    defaultPriority: "medium",
+  },
+  {
+    label: "Book hair & makeup trial",
+    monthsBeforeWedding: 4,
+    taskTitle: "Book hair & makeup trial",
+    defaultPriority: "low",
+  },
+  {
+    label: "Finalize guest list",
+    monthsBeforeWedding: 3,
+    taskTitle: "Finalize guest list and headcount",
+    defaultPriority: "high",
+  },
+  {
+    label: "Send invitations",
+    monthsBeforeWedding: 2,
+    taskTitle: "Send invitations",
+    defaultPriority: "high",
+  },
+  {
+    label: "Confirm all vendor bookings",
+    weeksBeforeWedding: 6,
+    taskTitle: "Confirm all vendor bookings",
+    defaultPriority: "high",
+  },
+  {
+    label: "Final walkthrough with venue",
+    weeksBeforeWedding: 2,
+    taskTitle: "Final walkthrough with venue",
+    defaultPriority: "high",
+  },
+  {
+    label: "Confirm final details with all vendors",
+    weeksBeforeWedding: 1,
+    taskTitle: "Confirm final details with all vendors",
+    defaultPriority: "high",
+  },
+];
 
 async function main() {
   console.log("Seeding database...");
+
+  // Timeline rules (standard milestone template)
+  for (const rule of TIMELINE_RULES) {
+    await prisma.timelineRule.create({
+      data: {
+        label: rule.label,
+        monthsBeforeWedding: rule.monthsBeforeWedding ?? null,
+        weeksBeforeWedding: rule.weeksBeforeWedding ?? null,
+        taskTitle: rule.taskTitle,
+        taskDescription: rule.taskDescription,
+        defaultPriority: rule.defaultPriority,
+      },
+    });
+  }
+  console.log(`  Timeline rules: ${TIMELINE_RULES.length}`);
 
   // Clients
   const client1 = await prisma.client.create({
@@ -74,6 +160,14 @@ async function main() {
       planningStatus: "inquiry",
     },
   });
+
+  // Auto-generate each wedding's task timeline from the rules above
+  for (const wedding of [wedding1, wedding2, wedding3]) {
+    const result = await generateTimelineForWedding(wedding.id, wedding.weddingDate);
+    console.log(
+      `  Timeline for ${wedding.id}: created ${result.created}, skipped ${result.skippedPast} (past due)`
+    );
+  }
 
   // Vendors
   const vendorFlorist = await prisma.vendor.create({

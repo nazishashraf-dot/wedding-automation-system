@@ -16,6 +16,20 @@ const PLANNING_STATUS_LABELS: Record<string, string> = {
   completed: "Completed",
 };
 
+const TASK_STATUS_LABELS: Record<string, string> = {
+  todo: "To Do",
+  in_progress: "In Progress",
+  done: "Done",
+};
+
+export function taskStatusLabel(status: string): string {
+  return TASK_STATUS_LABELS[status] ?? status;
+}
+
+export function taskPriorityLabel(priority: string): string {
+  return priority.charAt(0).toUpperCase() + priority.slice(1);
+}
+
 export function vendorCategoryLabel(category: string): string {
   return VENDOR_CATEGORY_LABELS[category] ?? category;
 }
