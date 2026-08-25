@@ -14,6 +14,7 @@ export type VendorLinkStatus = "contacted" | "quoted" | "confirmed";
 export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high";
 export type TaskSource = "auto_generated" | "manual";
+export type CalendarEventType = "milestone" | "client_meeting" | "vendor_meeting" | "reminder";
 
 export interface WeddingSummary {
   id: string;
@@ -68,10 +69,41 @@ export interface Wedding {
   budgetSpent: string;
   planningStatus: PlanningStatus;
   styleNotes: string | null;
+  guestCountEstimate: number | null;
+  intakeNotes: string | null;
   createdAt: string;
   updatedAt: string;
   client?: ClientSummary;
   vendors?: WeddingVendorLink[];
+}
+
+export interface Meeting {
+  id: string;
+  weddingId: string;
+  taskId: string | null;
+  type: CalendarEventType;
+  title: string;
+  scheduledAt: string;
+  googleEventId: string | null;
+  createdAt: string;
+}
+
+export interface GoogleConnectionStatus {
+  connected: boolean;
+  calendarId: string | null;
+  connectedAt: string | null;
+}
+
+export interface IntakeFormData {
+  weddingId: string;
+  fullName: string;
+  partnerName: string | null;
+  phone: string | null;
+  weddingDate: string;
+  venue: string | null;
+  guestCountEstimate: number | null;
+  styleNotes: string | null;
+  intakeNotes: string | null;
 }
 
 export interface Task {
@@ -215,6 +247,43 @@ export const updateTask = (
   id: string,
   data: Partial<{ status: TaskStatus; priority: TaskPriority; assignee: string; dueDate: string }>
 ) => request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+
+// Google Calendar integration
+export const getGoogleConnectionStatus = () =>
+  request<GoogleConnectionStatus>("/auth/google/status");
+export const googleConnectUrl = `${API_BASE_URL}/auth/google`;
+
+// Meetings
+export const listWeddingMeetings = (weddingId: string) =>
+  request<Meeting[]>(`/weddings/${weddingId}/meetings`);
+export const createWeddingMeeting = (
+  weddingId: string,
+  data: { title: string; scheduledAt: string; type?: CalendarEventType }
+) =>
+  request<Meeting>(`/weddings/${weddingId}/meetings`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+export const deleteMeeting = (id: string) =>
+  request<void>(`/meetings/${id}`, { method: "DELETE" });
+
+// Client intake form (public)
+export const getIntakeForm = (weddingId: string) =>
+  request<IntakeFormData>(`/forms/intake/${weddingId}`);
+export const submitIntakeForm = (
+  weddingId: string,
+  data: Partial<{
+    partnerName: string;
+    phone: string;
+    guestCountEstimate: number;
+    styleNotes: string;
+    intakeNotes: string;
+  }>
+) =>
+  request<{ success: boolean }>(`/forms/intake/${weddingId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 
 // Vendors
 export const listVendors = (category?: VendorCategory) =>

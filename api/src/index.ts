@@ -5,6 +5,9 @@ import clientsRouter from "./routes/clients";
 import weddingsRouter from "./routes/weddings";
 import vendorsRouter from "./routes/vendors";
 import tasksRouter from "./routes/tasks";
+import authRouter from "./routes/auth";
+import meetingsRouter from "./routes/meetings";
+import formsRouter from "./routes/forms";
 import { errorHandler } from "./errors";
 
 dotenv.config();
@@ -23,6 +26,9 @@ app.use("/clients", clientsRouter);
 app.use("/weddings", weddingsRouter);
 app.use("/vendors", vendorsRouter);
 app.use("/tasks", tasksRouter);
+app.use("/auth", authRouter);
+app.use("/meetings", meetingsRouter);
+app.use("/forms", formsRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: { message: "Not found" } });

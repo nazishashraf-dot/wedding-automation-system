@@ -30,6 +30,29 @@ export function taskPriorityLabel(priority: string): string {
   return priority.charAt(0).toUpperCase() + priority.slice(1);
 }
 
+const MEETING_TYPE_LABELS: Record<string, string> = {
+  milestone: "Milestone",
+  client_meeting: "Client Meeting",
+  vendor_meeting: "Vendor Meeting",
+  reminder: "Reminder",
+};
+
+export function meetingTypeLabel(type: string): string {
+  return MEETING_TYPE_LABELS[type] ?? type;
+}
+
+export function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function vendorCategoryLabel(category: string): string {
   return VENDOR_CATEGORY_LABELS[category] ?? category;
 }

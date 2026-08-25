@@ -4,6 +4,7 @@ import { prisma } from "../db";
 import { asyncHandler, notFound, validateBody } from "../errors";
 import { param, withOverdueFlag } from "../utils";
 import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../timeline";
+import { pushCalendarEventCreate } from "../googleCalendar";
 
 const router = Router();
 
@@ -57,6 +58,19 @@ const updateVendorLinkSchema = z.object({
   status: vendorLinkStatusEnum.optional(),
   priceQuoted: z.coerce.number().nonnegative().optional(),
   notes: z.string().optional(),
+});
+
+const calendarEventTypeEnum = z.enum([
+  "milestone",
+  "client_meeting",
+  "vendor_meeting",
+  "reminder",
+]);
+
+const createMeetingSchema = z.object({
+  title: z.string().min(1, "title is required"),
+  scheduledAt: z.coerce.date(),
+  type: calendarEventTypeEnum.optional(),
 });
 
 const weddingDetailInclude = {
@@ -171,6 +185,59 @@ router.post(
       data: { ...req.body, weddingId, source: "manual", status: "todo" },
     });
     res.status(201).json(withOverdueFlag(task));
+  })
+);
+
+router.get(
+  "/:id/meetings",
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const meetings = await prisma.calendarEvent.findMany({
+      where: { weddingId },
+      orderBy: { scheduledAt: "asc" },
+    });
+    res.json(meetings);
+  })
+);
+
+router.post(
+  "/:id/meetings",
+  validateBody(createMeetingSchema),
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const meeting = await prisma.calendarEvent.create({
+      data: {
+        weddingId,
+        title: req.body.title,
+        scheduledAt: req.body.scheduledAt,
+        type: req.body.type ?? "client_meeting",
+      },
+    });
+
+    try {
+      const googleEventId = await pushCalendarEventCreate({
+        title: meeting.title,
+        scheduledAt: meeting.scheduledAt,
+      });
+      if (googleEventId) {
+        const updated = await prisma.calendarEvent.update({
+          where: { id: meeting.id },
+          data: { googleEventId },
+        });
+        res.status(201).json(updated);
+        return;
+      }
+    } catch (err) {
+      console.error("Failed to push meeting to Google Calendar:", err);
+    }
+
+    res.status(201).json(meeting);
   })
 );
 

@@ -1,6 +1,8 @@
 import { prisma } from "../src/db";
 import { generateTimelineForWedding } from "../src/timeline";
 
+type CalendarEventType = "milestone" | "client_meeting" | "vendor_meeting" | "reminder";
+
 const TIMELINE_RULES: Array<{
   label: string;
   monthsBeforeWedding?: number;
@@ -8,6 +10,8 @@ const TIMELINE_RULES: Array<{
   taskTitle: string;
   taskDescription?: string;
   defaultPriority: "low" | "medium" | "high";
+  createsCalendarEvent?: boolean;
+  calendarEventType?: CalendarEventType;
 }> = [
   {
     label: "Book venue",
@@ -15,6 +19,8 @@ const TIMELINE_RULES: Array<{
     taskTitle: "Book venue",
     taskDescription: "Tour and confirm the ceremony/reception venue.",
     defaultPriority: "high",
+    createsCalendarEvent: true,
+    calendarEventType: "milestone",
   },
   {
     label: "Book major vendors",
@@ -51,6 +57,8 @@ const TIMELINE_RULES: Array<{
     monthsBeforeWedding: 3,
     taskTitle: "Finalize guest list and headcount",
     defaultPriority: "high",
+    createsCalendarEvent: true,
+    calendarEventType: "milestone",
   },
   {
     label: "Send invitations",
@@ -69,12 +77,16 @@ const TIMELINE_RULES: Array<{
     weeksBeforeWedding: 2,
     taskTitle: "Final walkthrough with venue",
     defaultPriority: "high",
+    createsCalendarEvent: true,
+    calendarEventType: "vendor_meeting",
   },
   {
     label: "Confirm final details with all vendors",
     weeksBeforeWedding: 1,
     taskTitle: "Confirm final details with all vendors",
     defaultPriority: "high",
+    createsCalendarEvent: true,
+    calendarEventType: "reminder",
   },
 ];
 
@@ -91,6 +103,8 @@ async function main() {
         taskTitle: rule.taskTitle,
         taskDescription: rule.taskDescription,
         defaultPriority: rule.defaultPriority,
+        createsCalendarEvent: rule.createsCalendarEvent ?? false,
+        calendarEventType: rule.calendarEventType,
       },
     });
   }

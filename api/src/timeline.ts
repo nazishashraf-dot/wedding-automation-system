@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { startOfTodayUTC } from "./utils";
+import { pushCalendarEventCreate, pushCalendarEventUpdate } from "./googleCalendar";
 
 function subtractMonthsUTC(date: Date, months: number): Date {
   const d = new Date(date);
@@ -71,7 +72,7 @@ export async function generateTimelineForWedding(
       continue;
     }
 
-    await prisma.task.create({
+    const task = await prisma.task.create({
       data: {
         weddingId,
         timelineRuleId: rule.id,
@@ -84,9 +85,51 @@ export async function generateTimelineForWedding(
       },
     });
     created++;
+
+    if (rule.createsCalendarEvent) {
+      await createCalendarEventForTask(weddingId, task.id, {
+        title: rule.taskTitle,
+        scheduledAt: dueDate,
+        type: rule.calendarEventType ?? "milestone",
+      });
+    }
   }
 
   return { created, skippedPast, skippedExisting };
+}
+
+async function createCalendarEventForTask(
+  weddingId: string,
+  taskId: string,
+  event: { title: string; scheduledAt: Date; type: "milestone" | "client_meeting" | "vendor_meeting" | "reminder" }
+): Promise<void> {
+  const calendarEvent = await prisma.calendarEvent.create({
+    data: {
+      weddingId,
+      taskId,
+      type: event.type,
+      title: event.title,
+      scheduledAt: event.scheduledAt,
+    },
+  });
+
+  try {
+    const googleEventId = await pushCalendarEventCreate({
+      title: event.title,
+      scheduledAt: event.scheduledAt,
+    });
+    if (googleEventId) {
+      await prisma.calendarEvent.update({
+        where: { id: calendarEvent.id },
+        data: { googleEventId },
+      });
+    }
+  } catch (err) {
+    // Google Calendar being unreachable/unconfigured should never break task
+    // generation — the CalendarEvent row still exists locally without a
+    // googleEventId.
+    console.error("Failed to push calendar event to Google Calendar:", err);
+  }
 }
 
 /**
@@ -105,7 +148,7 @@ export async function recalculateAutoTaskDueDates(
       status: { not: "done" },
       timelineRuleId: { not: null },
     },
-    include: { timelineRule: true },
+    include: { timelineRule: true, calendarEvents: true },
   });
 
   let updated = 0;
@@ -114,6 +157,24 @@ export async function recalculateAutoTaskDueDates(
     const dueDate = computeDueDate(newWeddingDate, task.timelineRule);
     await prisma.task.update({ where: { id: task.id }, data: { dueDate } });
     updated++;
+
+    for (const calendarEvent of task.calendarEvents) {
+      await prisma.calendarEvent.update({
+        where: { id: calendarEvent.id },
+        data: { scheduledAt: dueDate },
+      });
+
+      if (calendarEvent.googleEventId) {
+        try {
+          await pushCalendarEventUpdate(calendarEvent.googleEventId, {
+            title: calendarEvent.title,
+            scheduledAt: dueDate,
+          });
+        } catch (err) {
+          console.error("Failed to update calendar event on Google Calendar:", err);
+        }
+      }
+    }
   }
 
   return { updated };

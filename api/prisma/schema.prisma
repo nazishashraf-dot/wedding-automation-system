@@ -59,6 +59,13 @@ enum TaskSource {
   manual
 }
 
+enum CalendarEventType {
+  milestone
+  client_meeting
+  vendor_meeting
+  reminder
+}
+
 model Client {
   id           String       @id @default(uuid())
   fullName     String
@@ -88,8 +95,13 @@ model Wedding {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
+  // Captured via the public client intake form (/forms/intake/[weddingId])
+  guestCountEstimate Int?
+  intakeNotes        String?
+
   vendors         WeddingVendor[]
   tasks           Task[]
+  calendarEvents  CalendarEvent[]
 
   @@map("weddings")
 }
@@ -137,6 +149,8 @@ model Task {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  calendarEvents  CalendarEvent[]
+
   @@map("tasks")
 }
 
@@ -154,7 +168,45 @@ model TimelineRule {
   isActive            Boolean      @default(true)
   createdAt           DateTime     @default(now())
 
+  // When true, generated tasks for this rule also get a Google Calendar
+  // event (see src/timeline.ts + src/googleCalendar.ts). Most routine prep
+  // tasks don't warrant a calendar entry — this is reserved for hard
+  // deadlines and actual meetings.
+  createsCalendarEvent Boolean            @default(false)
+  calendarEventType    CalendarEventType?
+
   tasks               Task[]
 
   @@map("timeline_rules")
+}
+
+// Single-row table holding the OAuth refresh token for the one internal user
+// who connects Google Calendar, plus the ID of the dedicated "Weddings"
+// calendar we create on first use.
+model GoogleAuthToken {
+  id           String    @id @default(uuid())
+  refreshToken String
+  accessToken  String?
+  expiryDate   DateTime?
+  scope        String?
+  calendarId   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("google_auth_tokens")
+}
+
+model CalendarEvent {
+  id            String            @id @default(uuid())
+  weddingId     String
+  wedding       Wedding           @relation(fields: [weddingId], references: [id])
+  taskId        String?
+  task          Task?             @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  type          CalendarEventType
+  title         String
+  scheduledAt   DateTime
+  googleEventId String?
+  createdAt     DateTime          @default(now())
+
+  @@map("calendar_events")
 }

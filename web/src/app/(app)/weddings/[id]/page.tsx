@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import {
   ApiError,
+  CalendarEventType,
+  Meeting,
   Task,
   Vendor,
   Wedding,
+  createWeddingMeeting,
   createWeddingTask,
+  deleteMeeting,
   getWedding,
   linkVendorToWedding,
   listVendors,
+  listWeddingMeetings,
   listWeddingTasks,
   regenerateTimeline,
   updateTask,
@@ -18,7 +23,9 @@ import {
 } from "@/lib/api";
 import {
   formatDate,
+  formatDateTime,
   formatMoney,
+  meetingTypeLabel,
   planningStatusLabel,
   taskPriorityLabel,
   taskStatusLabel,
@@ -61,6 +68,16 @@ export default function WeddingDetailPage({
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateMessage, setRegenerateMessage] = useState<string | null>(null);
 
+  const [meetings, setMeetings] = useState<Meeting[] | null>(null);
+  const [meetingError, setMeetingError] = useState<string | null>(null);
+  const [showMeetingForm, setShowMeetingForm] = useState(false);
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetingScheduledAt, setMeetingScheduledAt] = useState("");
+  const [meetingType, setMeetingType] = useState<CalendarEventType>("client_meeting");
+  const [schedulingMeeting, setSchedulingMeeting] = useState(false);
+
+  const [linkCopied, setLinkCopied] = useState(false);
+
   async function refresh() {
     try {
       const data = await getWedding(id);
@@ -83,9 +100,20 @@ export default function WeddingDetailPage({
     }
   }
 
+  async function refreshMeetings() {
+    try {
+      const data = await listWeddingMeetings(id);
+      setMeetings(data);
+      setMeetingError(null);
+    } catch (err) {
+      setMeetingError(err instanceof ApiError ? err.message : "Failed to load meetings");
+    }
+  }
+
   useEffect(() => {
     refresh();
     refreshTasks();
+    refreshMeetings();
     listVendors()
       .then(setAllVendors)
       .catch(() => {});
@@ -188,6 +216,48 @@ export default function WeddingDetailPage({
     }
   }
 
+  async function handleScheduleMeeting(e: React.FormEvent) {
+    e.preventDefault();
+    setSchedulingMeeting(true);
+    setMeetingError(null);
+    try {
+      await createWeddingMeeting(id, {
+        title: meetingTitle,
+        scheduledAt: new Date(meetingScheduledAt).toISOString(),
+        type: meetingType,
+      });
+      setMeetingTitle("");
+      setMeetingScheduledAt("");
+      setMeetingType("client_meeting");
+      setShowMeetingForm(false);
+      await refreshMeetings();
+    } catch (err) {
+      setMeetingError(err instanceof ApiError ? err.message : "Failed to schedule meeting");
+    } finally {
+      setSchedulingMeeting(false);
+    }
+  }
+
+  async function handleDeleteMeeting(meetingId: string) {
+    try {
+      await deleteMeeting(meetingId);
+      await refreshMeetings();
+    } catch (err) {
+      setMeetingError(err instanceof ApiError ? err.message : "Failed to cancel meeting");
+    }
+  }
+
+  async function handleCopyIntakeLink() {
+    const url = `${window.location.origin}/forms/intake/${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable — silently ignore, button just won't confirm.
+    }
+  }
+
   if (error && !wedding) {
     return <p className="text-sm text-red-600">{error}</p>;
   }
@@ -201,15 +271,23 @@ export default function WeddingDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">
-          {wedding.client?.fullName}
-          {wedding.client?.partnerName ? ` & ${wedding.client.partnerName}` : ""}
-        </h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          {formatDate(wedding.weddingDate)} · {wedding.venue ?? "Venue TBD"} ·{" "}
-          {planningStatusLabel(wedding.planningStatus)}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">
+            {wedding.client?.fullName}
+            {wedding.client?.partnerName ? ` & ${wedding.client.partnerName}` : ""}
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            {formatDate(wedding.weddingDate)} · {wedding.venue ?? "Venue TBD"} ·{" "}
+            {planningStatusLabel(wedding.planningStatus)}
+          </p>
+        </div>
+        <button
+          onClick={handleCopyIntakeLink}
+          className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+        >
+          {linkCopied ? "Copied!" : "Copy intake form link"}
+        </button>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -391,6 +469,112 @@ export default function WeddingDetailPage({
                 <tr>
                   <td colSpan={5} className="px-3 py-4 text-center text-neutral-400">
                     No tasks yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-neutral-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-neutral-900">Upcoming Meetings</h2>
+          <button
+            onClick={() => setShowMeetingForm((s) => !s)}
+            className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700"
+          >
+            {showMeetingForm ? "Cancel" : "Schedule Meeting"}
+          </button>
+        </div>
+
+        {showMeetingForm && (
+          <form
+            onSubmit={handleScheduleMeeting}
+            className="mb-4 grid grid-cols-1 gap-3 rounded-md border border-neutral-100 bg-neutral-50 p-3 sm:grid-cols-4"
+          >
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Title</label>
+              <input
+                required
+                className={inputClass}
+                value={meetingTitle}
+                onChange={(e) => setMeetingTitle(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">
+                Date &amp; time
+              </label>
+              <input
+                required
+                type="datetime-local"
+                className={inputClass}
+                value={meetingScheduledAt}
+                onChange={(e) => setMeetingScheduledAt(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-neutral-600">Type</label>
+              <select
+                className={inputClass}
+                value={meetingType}
+                onChange={(e) => setMeetingType(e.target.value as CalendarEventType)}
+              >
+                <option value="client_meeting">Client Meeting</option>
+                <option value="vendor_meeting">Vendor Meeting</option>
+                <option value="milestone">Milestone</option>
+                <option value="reminder">Reminder</option>
+              </select>
+            </div>
+            <div className="flex items-end sm:col-span-4">
+              <button
+                type="submit"
+                disabled={schedulingMeeting}
+                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {schedulingMeeting ? "Scheduling..." : "Save Meeting"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {meetingError && <p className="mb-2 text-sm text-red-600">{meetingError}</p>}
+
+        <div className="overflow-hidden rounded-md border border-neutral-100">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
+              <tr>
+                <th className="px-3 py-2">Title</th>
+                <th className="px-3 py-2">When</th>
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Calendar</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-100">
+              {meetings?.map((meeting) => (
+                <tr key={meeting.id}>
+                  <td className="px-3 py-2 font-medium">{meeting.title}</td>
+                  <td className="px-3 py-2">{formatDateTime(meeting.scheduledAt)}</td>
+                  <td className="px-3 py-2">{meetingTypeLabel(meeting.type)}</td>
+                  <td className="px-3 py-2 text-xs text-neutral-400">
+                    {meeting.googleEventId ? "Synced" : "Not synced"}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      onClick={() => handleDeleteMeeting(meeting.id)}
+                      className="text-xs font-medium text-red-600 hover:underline"
+                    >
+                      Cancel
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {meetings && meetings.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-3 py-4 text-center text-neutral-400">
+                    No meetings scheduled.
                   </td>
                 </tr>
               )}
