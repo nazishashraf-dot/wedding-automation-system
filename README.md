@@ -5,11 +5,11 @@ Sheets, Google Calendar, and Google Forms with a single system: client/wedding
 records, auto-generated planning timelines, task tracking, vendor management,
 Google Calendar sync, and templated email automation.
 
-This repo is currently at **Phase 3 (Google Calendar integration + client
-intake form)**. Client/Wedding/Vendor CRUD, a configurable milestone-based
-task timeline, one-way Google Calendar sync, and a public client intake form
-all exist and work end to end; email automation is the remaining later
-phase.
+**The MVP is complete as of Phase 4** (email automation + a real dashboard).
+Client/Wedding/Vendor CRUD, a configurable milestone-based task timeline,
+one-way Google Calendar sync, a public client intake form, templated email
+reminders/nudges on a daily schedule, and a real "what needs attention today"
+dashboard all exist and work end to end.
 
 ## Folder structure
 
@@ -26,7 +26,7 @@ phase.
 Next.js 14 app (App Router, `src/` directory, TypeScript, Tailwind CSS).
 
 - `src/app/(app)/` — the authenticated-feeling app shell (nav bar, from its
-  own `layout.tsx`): `/` (dashboard placeholder), `/clients`, `/weddings`,
+  own `layout.tsx`): `/` (the real dashboard), `/clients`, `/weddings`,
   `/weddings/[id]` (budget, tasks, meetings, linked vendors), `/vendors`,
   `/settings` (Google Calendar connection)
 - `src/app/forms/intake/[weddingId]/` — the public client intake form. Lives
@@ -48,19 +48,25 @@ Express + TypeScript API.
 - `src/googleCalendar.ts` — all Google API interaction: OAuth URL/token
   exchange, connection status, and `pushCalendarEventCreate/Update/Delete`
   (see "Google Calendar integration" below)
-- `src/routes/` — `clients.ts`, `weddings.ts` (wedding-scoped task + meeting
-  routes, regenerate-timeline), `vendors.ts`, `tasks.ts` (cross-wedding task
-  list), `auth.ts` (Google OAuth), `meetings.ts` (`DELETE /meetings/:id`),
-  `forms.ts` (public client intake form)
+- `src/email.ts` — `sendTemplatedEmail`: renders an `EmailTemplate`, sends it
+  via Resend, always writes an `EmailLog` row (see "Email automation" below)
+- `src/emailJob.ts` — `runEmailJob`: the daily due-soon/overdue check
+- `src/templateVars.ts` — `formatDateForEmail`, shared by the email job and
+  the manual-send route
+- `src/routes/` — `clients.ts`, `weddings.ts` (wedding-scoped task/meeting/
+  email routes, regenerate-timeline), `vendors.ts`, `tasks.ts` (cross-wedding
+  task list), `auth.ts` (Google OAuth), `meetings.ts` (`DELETE /meetings/:id`),
+  `forms.ts` (public client intake form), `dashboard.ts` (`GET /dashboard`),
+  `admin.ts` (`POST /admin/run-email-job`)
 - `src/errors.ts` — `AppError`, `asyncHandler`, `validateBody` (zod), and the
   global JSON error-response middleware
 - `src/utils.ts` — `param`, `startOfTodayUTC`, `withOverdueFlag`
 - `prisma/schema.prisma` — data model: `Client`, `Wedding`, `Vendor`,
   `WeddingVendor` (join table), `Task`, `TimelineRule`, `CalendarEvent`,
-  `GoogleAuthToken`
-- `prisma/seed.ts` — seeds 11 timeline rules (4 of them calendar-worthy), 3
-  clients, 3 weddings (each with auto-generated tasks + calendar events), 5
-  vendors, and a couple of vendor links
+  `GoogleAuthToken`, `EmailTemplate`, `EmailLog`
+- `prisma/seed.ts` — seeds 11 timeline rules (4 calendar-worthy), 5 email
+  templates, 3 clients, 3 weddings (each with auto-generated tasks + calendar
+  events), 5 vendors, and a couple of vendor links
 
 ## Data model
 
@@ -97,6 +103,16 @@ Express + TypeScript API.
 - **GoogleAuthToken** — single-row table holding the one internal user's
   OAuth refresh token and the ID of the dedicated "Weddings" calendar created
   on first connect.
+- **EmailTemplate** — editable library keyed by a stable `key` slug (not
+  `id`), so code can reference `"milestone_reminder"` without caring about
+  row IDs; `subject`, `bodyTemplate` (plain text with `{{placeholders}}`),
+  `isActive`.
+- **EmailLog** — one row per send attempt, whether it succeeded or not;
+  belongs to a `Wedding`, optionally to the `Task` that triggered it;
+  `templateKey`, `recipientEmail`, `subject` (the rendered text actually
+  sent), `sentAt`, `status` (`sent`/`failed`). This is both the audit trail
+  (`GET /weddings/:id/email-log`) and the de-dup mechanism the daily job
+  checks before sending.
 
 > Note: the spec's hyphenated enum values (`in-progress`, `final-month`,
 > `dj/band`, `hair & makeup`) aren't valid Prisma enum identifiers, so they're
@@ -137,9 +153,14 @@ routine prep work that would just clutter a calendar.
 One-way sync (app → Calendar), single internal user, OAuth via
 `src/googleCalendar.ts`:
 
-- **`GET /auth/google`** redirects to Google's consent screen
-  (`calendar.events` scope, `access_type: offline` + `prompt: consent` so a
-  refresh token is always issued).
+- **`GET /auth/google`** redirects to Google's consent screen (the full
+  `calendar` scope — `calendar.events` alone isn't enough, since creating the
+  dedicated "Weddings" calendar via `calendars.insert` needs the broader
+  scope; found this the hard way when the seed script's calendar-creation
+  call came back `403 insufficient authentication scopes` — fixed here, but
+  it means **anyone who connected under the old scope needs to reconnect**
+  from `/settings` to pick up the new one), `access_type: offline` +
+  `prompt: consent` so a refresh token is always issued.
 - **`GET /auth/google/callback`** exchanges the code for tokens, upserts the
   single `GoogleAuthToken` row, then redirects the browser to
   `${FRONTEND_URL}/settings?connected=1` (or `...=0` on failure).
@@ -163,6 +184,67 @@ OAuth consent screen or live Calendar writes myself (no Google credentials)
 — everything else (CalendarEvent rows, the idempotent create/update flow,
 meetings CRUD) is verified working with Google in the "not connected" state;
 see "What to verify yourself" below for the one piece that needs you.
+
+## Email automation
+
+`src/email.ts` + `src/emailJob.ts`, sending via [Resend](https://resend.com):
+
+- **`sendTemplatedEmail({ weddingId, templateKey, recipientEmail, vars, relatedTaskId? })`**
+  loads the named `EmailTemplate`, renders `{{placeholder}}` tokens in the
+  subject/body against `vars` (unmatched placeholders render as empty
+  string), sends via Resend, and **always** writes an `EmailLog` row —
+  `status: "sent"` or `"failed"`, never throws for a send failure or missing
+  `RESEND_API_KEY`/`FROM_EMAIL` (same graceful-degradation approach as Google
+  Calendar: logs the failure and moves on). It does throw
+  `TemplateNotFoundError` for an unknown/inactive `templateKey`, which the
+  route layer turns into a `404`.
+- **`runEmailJob()`** — the daily check, safe to run repeatedly:
+  - **Due-soon reminders** (`milestone_reminder`): tasks due within the next
+    3 days, not done, that have never had a reminder logged for them —
+    sent once per task, ever.
+  - **Overdue nudges** (`task_overdue`): tasks overdue by 1+ days, not done,
+    that haven't had an overdue nudge logged in the **last 7 days** — so a
+    task that stays overdue for a month gets re-nudged roughly weekly
+    instead of either spamming daily or going silent after the first email.
+  - Runs automatically via `node-cron` at 8am server time (see `index.ts`),
+    and on demand via `POST /admin/run-email-job` (useful for testing without
+    waiting for the schedule).
+
+Of the 5 seeded templates, only `milestone_reminder` and `task_overdue` are
+used by the automated job. The other three — `vendor_followup`,
+`info_request`, `status_checkin` — are for ad-hoc use via
+`POST /weddings/:id/send-email { templateKey, recipientEmail }`. Because that
+endpoint's request body is deliberately minimal (per spec: just
+`templateKey` + `recipientEmail`, no `taskId`/`vendorId`), the vars it can
+populate are wedding/client-level only (`clientName`, `partnerNameSuffix`,
+`weddingDate`, `venue`, `daysUntilWedding`, `intakeFormLink`) — `taskTitle`/
+`dueDate`/`daysOverdue` are only available when the email job itself sends
+(where a specific task is in scope). `vendor_followup`'s wording was written
+generic ("Hi there,") for exactly this reason, since there's no vendor name
+to fill in without a `vendorId` param.
+
+## Dashboard
+
+`GET /dashboard` (`src/routes/dashboard.ts`) answers "what needs attention
+today" in one call:
+
+- **`upcomingWeddings`** — weddings in the next 90 days, ascending by date,
+  each with a computed `daysUntil`.
+- **`overdueTasks`** — every overdue task across all weddings, with the
+  owning wedding + client attached, ascending by due date (most overdue
+  first) with a computed `daysOverdue`.
+- **`todayMeetings`** / **`weekMeetings`** — calendar events scheduled today,
+  and in the next 7 days (a superset that includes today).
+- **`needsAttention`** — weddings within the next 60 days flagged if either:
+  zero vendors have `status: confirmed`, or 3+ tasks are overdue. Both are
+  judgement calls (the spec asked for "a sensible flag") aimed at catching
+  two different failure modes: a wedding that's coming up with nothing
+  booked, and a wedding that's quietly falling behind on prep.
+
+The `/` page in `/web` renders all of this — Needs Attention first (most
+actionable), then today's/this week's meetings, overdue tasks, and upcoming
+wedding cards with a countdown badge — and is the nav's first item, so it's
+already what you land on.
 
 ## API endpoints
 
@@ -193,6 +275,10 @@ see "What to verify yourself" below for the one piece that needs you.
 | GET | `/auth/google/status` | `{ connected, calendarId, connectedAt }` |
 | GET | `/forms/intake/:weddingId` | **public** — minimal wedding info to prefill the intake form |
 | POST | `/forms/intake/:weddingId` | **public** — submits the intake form |
+| GET | `/dashboard` | upcoming weddings, overdue tasks, today's/week's meetings, needs-attention |
+| POST | `/weddings/:id/send-email` | ad-hoc send (`templateKey`, `recipientEmail`); logs to `EmailLog` |
+| GET | `/weddings/:id/email-log` | sent/failed email history for a wedding, newest first |
+| POST | `/admin/run-email-job` | manually trigger the daily due-soon/overdue email check |
 | GET | `/vendors` | optional `?category=` filter |
 | GET | `/vendors/:id` | |
 | POST | `/vendors` | |
@@ -241,7 +327,7 @@ cd api
 npm install
 cp .env.example .env      # uses the local prisma dev DB by default
 npx prisma migrate dev    # applies the schema (first time only)
-npm run seed               # optional: timeline rules, 3 clients/weddings (with tasks), 5 vendors
+npm run seed               # optional: timeline rules, email templates, 3 clients/weddings, 5 vendors
 npm run dev
 ```
 
@@ -323,15 +409,35 @@ no-ops (see "Graceful degradation" above). To actually connect it:
 6. Restart `npm run dev` in `/api` so it picks up the new env vars, then go
    to `/settings` in the app and click **Connect Google Calendar**.
 
+### Email setup (do this yourself)
+
+Also runs fine with these unset — see "Email automation" above for what
+happens instead (an `EmailLog` row with `status: "failed"`, nothing thrown).
+
+1. Sign up at [resend.com](https://resend.com) and grab an API key from the
+   **API Keys** page (free tier is plenty for this).
+2. Simplest path for testing: leave `FROM_EMAIL` as
+   `onboarding@resend.dev` (Resend's own shared sender) — mail from it only
+   delivers to the email address you signed up to Resend with, which is
+   perfect for sending yourself a test. To send to arbitrary recipients
+   later, verify your own domain in Resend and use an address on it instead.
+3. In `api/.env`:
+   ```
+   RESEND_API_KEY="re_..."
+   FROM_EMAIL="onboarding@resend.dev"
+   ```
+4. Restart `npm run dev` in `/api`.
+
 ## Status
 
 - [x] Next.js 14 app scaffolded in `/web`
 - [x] Express + TypeScript API with Prisma/PostgreSQL
 - [x] Client, Wedding, Vendor, WeddingVendor, Task, TimelineRule,
-      CalendarEvent, GoogleAuthToken data model + migrations
+      CalendarEvent, GoogleAuthToken, EmailTemplate, EmailLog data model +
+      migrations
 - [x] REST endpoints with zod validation and consistent JSON error responses
-- [x] Seed script (11 timeline rules, 3 clients, 3 weddings with generated
-      tasks + calendar events, 5 vendors)
+- [x] Seed script (11 timeline rules, 5 email templates, 3 clients, 3
+      weddings with generated tasks + calendar events, 5 vendors)
 - [x] Basic UI shell: nav, Clients/Weddings/Vendors list + create, Wedding
       detail with editable budget, tasks, meetings, and vendor linking
 - [x] Automated timeline engine: auto-generates tasks on wedding creation,
@@ -347,5 +453,18 @@ no-ops (see "Graceful degradation" above). To actually connect it:
 - [x] Public client intake form (`/forms/intake/[weddingId]`) writing
       straight into the Client/Wedding record, plus a "Copy intake form
       link" button on the wedding detail page
-- [ ] Email automation — later phase
-- [ ] Real dashboard (currently a placeholder) — Phase 4
+- [x] Email automation: 5 editable templates, daily due-soon/overdue check
+      (idempotent, re-nudges overdue tasks weekly), manual send + email log,
+      `node-cron` schedule + on-demand admin trigger — **the actual Resend
+      send needs your own API key to verify**, see "Email setup" above
+- [x] Real dashboard: upcoming weddings, overdue tasks, today's/week's
+      meetings, needs-attention flags — now the default landing page
+
+**MVP complete.** Everything in the original spec's Phase 1 (MVP) column is
+built and working. Not built (all explicitly out of scope for v1 per the
+spec): Canva integration, multi-tenant support, payments/invoicing, a mobile
+app, and any auth/login layer for the internal app itself (only Google
+Calendar has an OAuth flow — the app's own routes have no access control
+yet, consistent with "1–2 internal users, no complex role system" from the
+spec, but worth calling out before this goes anywhere other people can
+reach it).

@@ -133,6 +133,59 @@ export interface RegenerateTimelineResult {
   skippedExisting: number;
 }
 
+export interface DashboardWedding {
+  id: string;
+  weddingDate: string;
+  venue: string | null;
+  planningStatus: PlanningStatus;
+  daysUntil: number;
+  client: ClientSummary;
+}
+
+export interface DashboardTask {
+  id: string;
+  title: string;
+  dueDate: string;
+  priority: TaskPriority;
+  daysOverdue: number;
+  wedding: { id: string; weddingDate: string; client: ClientSummary };
+}
+
+export interface DashboardMeeting {
+  id: string;
+  title: string;
+  type: CalendarEventType;
+  scheduledAt: string;
+  wedding: { id: string; weddingDate: string; client: ClientSummary };
+}
+
+export interface DashboardAttentionItem {
+  weddingId: string;
+  weddingDate: string;
+  daysUntil: number;
+  client: ClientSummary;
+  reasons: string[];
+}
+
+export interface DashboardData {
+  upcomingWeddings: DashboardWedding[];
+  overdueTasks: DashboardTask[];
+  todayMeetings: DashboardMeeting[];
+  weekMeetings: DashboardMeeting[];
+  needsAttention: DashboardAttentionItem[];
+}
+
+export interface EmailLogEntry {
+  id: string;
+  weddingId: string;
+  templateKey: string;
+  recipientEmail: string;
+  subject: string;
+  sentAt: string;
+  status: "sent" | "failed";
+  relatedTaskId: string | null;
+}
+
 export class ApiError extends Error {
   status: number;
   details?: unknown;
@@ -281,6 +334,21 @@ export const submitIntakeForm = (
   }>
 ) =>
   request<{ success: boolean }>(`/forms/intake/${weddingId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+// Dashboard
+export const getDashboard = () => request<DashboardData>("/dashboard");
+
+// Email
+export const listWeddingEmailLog = (weddingId: string) =>
+  request<EmailLogEntry[]>(`/weddings/${weddingId}/email-log`);
+export const sendWeddingEmail = (
+  weddingId: string,
+  data: { templateKey: string; recipientEmail: string }
+) =>
+  request<EmailLogEntry>(`/weddings/${weddingId}/send-email`, {
     method: "POST",
     body: JSON.stringify(data),
   });

@@ -2,7 +2,9 @@ import { google } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
 import { prisma } from "./db";
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
+// `calendar.events` alone is enough to manage events, but `calendars.insert`
+// (creating the dedicated "Weddings" calendar) needs the broader scope.
+const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 const CALENDAR_NAME = "Weddings";
 const DEFAULT_EVENT_DURATION_MS = 30 * 60 * 1000;
 

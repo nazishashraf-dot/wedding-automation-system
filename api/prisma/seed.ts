@@ -3,6 +3,60 @@ import { generateTimelineForWedding } from "../src/timeline";
 
 type CalendarEventType = "milestone" | "client_meeting" | "vendor_meeting" | "reminder";
 
+const EMAIL_TEMPLATES: Array<{ key: string; subject: string; bodyTemplate: string }> = [
+  {
+    key: "milestone_reminder",
+    subject: "Reminder: {{taskTitle}} is coming up",
+    bodyTemplate:
+      "Hi {{clientName}}{{partnerNameSuffix}},\n\n" +
+      'Just a friendly reminder that "{{taskTitle}}" is due on {{dueDate}}, as part of planning ' +
+      "for your wedding on {{weddingDate}}.\n\n" +
+      "Let us know if you have any questions or need a hand with this one!\n\n" +
+      "Warmly,\nYour Wedding Planning Team",
+  },
+  {
+    key: "task_overdue",
+    subject: "Following up: {{taskTitle}} is now overdue",
+    bodyTemplate:
+      "Hi {{clientName}}{{partnerNameSuffix}},\n\n" +
+      '"{{taskTitle}}" was due on {{dueDate}} ({{daysOverdue}} day(s) ago) and we haven\'t heard ' +
+      "back yet. No worries if it's already in progress — just wanted to check in so nothing " +
+      "slips through the cracks before {{weddingDate}}.\n\n" +
+      "Let us know how we can help!\n\n" +
+      "Warmly,\nYour Wedding Planning Team",
+  },
+  {
+    key: "vendor_followup",
+    subject: "Checking in on your booking for {{clientName}}'s wedding",
+    bodyTemplate:
+      "Hi there,\n\n" +
+      "Just following up regarding your booking for {{clientName}}{{partnerNameSuffix}}'s " +
+      "wedding on {{weddingDate}}. Could you confirm your current status (contacted / quoted / " +
+      "confirmed) when you get a chance?\n\n" +
+      "Thanks so much!\n\nYour Wedding Planning Team",
+  },
+  {
+    key: "info_request",
+    subject: "A few details for your upcoming wedding",
+    bodyTemplate:
+      "Hi {{clientName}}{{partnerNameSuffix}},\n\n" +
+      "As we get closer to {{weddingDate}}, could you share a few more details with us? " +
+      "You can fill out our quick intake form here: {{intakeFormLink}}\n\n" +
+      "Thanks so much — we're looking forward to helping make your day perfect!\n\n" +
+      "Your Wedding Planning Team",
+  },
+  {
+    key: "status_checkin",
+    subject: "How's wedding planning going, {{clientName}}?",
+    bodyTemplate:
+      "Hi {{clientName}}{{partnerNameSuffix}},\n\n" +
+      "Just checking in as your wedding on {{weddingDate}} approaches ({{daysUntilWedding}} " +
+      "days to go!). How are things feeling on your end? Let us know if there's anything you " +
+      "need from us.\n\n" +
+      "Warmly,\nYour Wedding Planning Team",
+  },
+];
+
 const TIMELINE_RULES: Array<{
   label: string;
   monthsBeforeWedding?: number;
@@ -109,6 +163,12 @@ async function main() {
     });
   }
   console.log(`  Timeline rules: ${TIMELINE_RULES.length}`);
+
+  // Email templates
+  for (const template of EMAIL_TEMPLATES) {
+    await prisma.emailTemplate.create({ data: template });
+  }
+  console.log(`  Email templates: ${EMAIL_TEMPLATES.length}`);
 
   // Clients
   const client1 = await prisma.client.create({

@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
-import { asyncHandler, notFound, validateBody } from "../errors";
+import { AppError, asyncHandler, notFound, validateBody } from "../errors";
 import { param, withOverdueFlag } from "../utils";
 import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../timeline";
 import { pushCalendarEventCreate } from "../googleCalendar";
+import { TemplateNotFoundError, sendTemplatedEmail } from "../email";
+import { formatDateForEmail } from "../templateVars";
 
 const router = Router();
 
@@ -71,6 +73,11 @@ const createMeetingSchema = z.object({
   title: z.string().min(1, "title is required"),
   scheduledAt: z.coerce.date(),
   type: calendarEventTypeEnum.optional(),
+});
+
+const sendEmailSchema = z.object({
+  templateKey: z.string().min(1, "templateKey is required"),
+  recipientEmail: z.string().email("recipientEmail must be a valid email address"),
 });
 
 const weddingDetailInclude = {
@@ -275,6 +282,62 @@ router.patch(
       include: { vendor: true },
     });
     res.json(link);
+  })
+);
+
+router.post(
+  "/:id/send-email",
+  validateBody(sendEmailSchema),
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({
+      where: { id: weddingId },
+      include: { client: true },
+    });
+    if (!wedding) throw notFound("Wedding");
+
+    const today = new Date();
+    const daysUntilWedding = Math.round(
+      (wedding.weddingDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)
+    );
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+    try {
+      const log = await sendTemplatedEmail({
+        weddingId,
+        templateKey: req.body.templateKey,
+        recipientEmail: req.body.recipientEmail,
+        vars: {
+          clientName: wedding.client.fullName,
+          partnerNameSuffix: wedding.client.partnerName ? ` & ${wedding.client.partnerName}` : "",
+          weddingDate: formatDateForEmail(wedding.weddingDate),
+          venue: wedding.venue ?? "",
+          daysUntilWedding: String(daysUntilWedding),
+          intakeFormLink: `${frontendUrl}/forms/intake/${weddingId}`,
+        },
+      });
+      res.status(201).json(log);
+    } catch (err) {
+      if (err instanceof TemplateNotFoundError) {
+        throw new AppError(404, err.message);
+      }
+      throw err;
+    }
+  })
+);
+
+router.get(
+  "/:id/email-log",
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const logs = await prisma.emailLog.findMany({
+      where: { weddingId },
+      orderBy: { sentAt: "desc" },
+    });
+    res.json(logs);
   })
 );
 

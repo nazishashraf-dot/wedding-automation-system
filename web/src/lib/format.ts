@@ -75,6 +75,18 @@ export function formatDate(value: string | null | undefined): string {
   return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+export function formatCountdown(daysUntil: number): string {
+  if (daysUntil === 0) return "Today";
+  if (daysUntil === 1) return "Tomorrow";
+  return `In ${daysUntil} days`;
+}
+
+export function formatOverdue(daysOverdue: number): string {
+  if (daysOverdue <= 0) return "Due today";
+  if (daysOverdue === 1) return "1 day overdue";
+  return `${daysOverdue} days overdue`;
+}
+
 export function formatMoney(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "—";
   const num = typeof value === "string" ? Number(value) : value;

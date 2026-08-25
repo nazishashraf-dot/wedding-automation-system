@@ -66,6 +66,11 @@ enum CalendarEventType {
   reminder
 }
 
+enum EmailStatus {
+  sent
+  failed
+}
+
 model Client {
   id           String       @id @default(uuid())
   fullName     String
@@ -102,6 +107,7 @@ model Wedding {
   vendors         WeddingVendor[]
   tasks           Task[]
   calendarEvents  CalendarEvent[]
+  emailLogs       EmailLog[]
 
   @@map("weddings")
 }
@@ -150,6 +156,7 @@ model Task {
   updatedAt       DateTime      @updatedAt
 
   calendarEvents  CalendarEvent[]
+  emailLogs       EmailLog[]
 
   @@map("tasks")
 }
@@ -209,4 +216,34 @@ model CalendarEvent {
   createdAt     DateTime          @default(now())
 
   @@map("calendar_events")
+}
+
+// Editable library of email templates, keyed by a stable slug rather than
+// id so the email job / manual-send endpoint can reference a template by
+// name without caring about its row id.
+model EmailTemplate {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  subject      String
+  bodyTemplate String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("email_templates")
+}
+
+model EmailLog {
+  id            String      @id @default(uuid())
+  weddingId     String
+  wedding       Wedding     @relation(fields: [weddingId], references: [id])
+  templateKey   String
+  recipientEmail String
+  subject       String
+  sentAt        DateTime    @default(now())
+  status        EmailStatus
+  relatedTaskId String?
+  relatedTask   Task?       @relation(fields: [relatedTaskId], references: [id], onDelete: SetNull)
+
+  @@map("email_logs")
 }
