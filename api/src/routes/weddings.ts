@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { AppError, asyncHandler, notFound, validateBody } from "../errors";
-import { param, withOverdueFlag } from "../utils";
+import { getFrontendUrl, param, withOverdueFlag } from "../utils";
 import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../timeline";
 import { pushCalendarEventCreate } from "../googleCalendar";
 import { TemplateNotFoundError, sendTemplatedEmail } from "../email";
@@ -300,7 +300,7 @@ router.post(
     const daysUntilWedding = Math.round(
       (wedding.weddingDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)
     );
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
 
     try {
       const log = await sendTemplatedEmail({

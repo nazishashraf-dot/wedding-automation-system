@@ -60,7 +60,10 @@ Express + TypeScript API.
   `admin.ts` (`POST /admin/run-email-job`)
 - `src/errors.ts` — `AppError`, `asyncHandler`, `validateBody` (zod), and the
   global JSON error-response middleware
-- `src/utils.ts` — `param`, `startOfTodayUTC`, `withOverdueFlag`
+- `src/utils.ts` — `param`, `startOfTodayUTC`, `withOverdueFlag`,
+  `getFrontendUrl`
+- `railway.json` — Railway build/start commands for deploying this folder as
+  its own service in the monorepo (see "Deployment" below)
 - `prisma/schema.prisma` — data model: `Client`, `Wedding`, `Vendor`,
   `WeddingVendor` (join table), `Task`, `TimelineRule`, `CalendarEvent`,
   `GoogleAuthToken`, `EmailTemplate`, `EmailLog`
@@ -341,10 +344,15 @@ curl http://localhost:4000/clients
 
 Other useful scripts in `/api`:
 
-- `npm run build` — compile TypeScript to `dist/`
-- `npm start` — run the compiled build from `dist/`
+- `npm run build` — regenerates the Prisma client, then compiles TypeScript
+  to `dist/` (the generated client isn't committed, so this always runs
+  before `tsc`)
+- `npm start` — runs `prisma migrate deploy` (applies any pending migrations)
+  then starts the compiled server from `dist/`. This is what production runs
+  — safe to run locally too, since `migrate deploy` is a no-op when there's
+  nothing pending.
 - `npm run prisma:generate` — regenerate the Prisma client after editing
-  `prisma/schema.prisma`
+  `prisma/schema.prisma`, without a full build
 - `npm run seed` — re-run the seed script (does not clear existing data;
   running it twice will fail on the unique client emails)
 
@@ -428,6 +436,102 @@ happens instead (an `EmailLog` row with `status: "failed"`, nothing thrown).
    ```
 4. Restart `npm run dev` in `/api`.
 
+## Deployment
+
+Target setup: **`/web` on Vercel**, **`/api` + PostgreSQL on Railway**. Both
+platforms support deploying a subfolder of a monorepo — you point each one
+at this same repo and tell it which folder is its root.
+
+Because the API needs to know the web app's URL (for CORS and the OAuth
+redirect) and the web app needs to know the API's URL, there's a
+chicken-and-egg step: deploy the API first, then the web app, then go back
+and update the API's URLs once you know where the web app actually landed.
+
+### 1. Deploy the API to Railway
+
+1. Create a new Railway project, add a service from this GitHub repo, and
+   set its **Root Directory** to `api`. Railway will find `api/railway.json`
+   (Nixpacks builder, `npm install && npm run build` to build,
+   `npm run start` to run) automatically once the root directory points
+   there.
+2. Add a **PostgreSQL** database to the project. Railway provisions it and
+   exposes a `DATABASE_URL` — reference/link that into the API service's
+   variables (Railway's UI does this for you when you add the plugin from
+   within the same project). You do **not** need `SHADOW_DATABASE_URL` in
+   production (see the comment in `.env.example` — it's dev-only).
+3. Set the rest of the API service's environment variables (Railway
+   dashboard → your service → Variables). See the full list below.
+4. Deploy. On first boot, `npm run start` runs `prisma migrate deploy`
+   (applying all committed migrations to the fresh database) before starting
+   the server — no manual migration step needed.
+5. Under the service's **Settings → Networking**, generate a public domain
+   (something like `your-api.up.railway.app`). You'll need this in the next
+   step and to finish configuring Google OAuth.
+6. Optional: seed the production database with the demo timeline
+   rules/email templates/sample data (or just the rules/templates — see
+   below) by running `npm run seed` against the production `DATABASE_URL`,
+   e.g. via `railway run npm run seed` from your machine with the Railway
+   CLI linked to the service, or by temporarily pointing your local
+   `api/.env`'s `DATABASE_URL` at the production database and running
+   `npm run seed` locally. **The seed script includes 3 demo clients/
+   weddings/vendors** — skip it or delete that demo data afterward if you
+   don't want it in a real production database; at minimum you'll want the
+   11 `TimelineRule` rows and 5 `EmailTemplate` rows the app depends on,
+   which the same seed script also creates.
+
+### 2. Deploy the web app to Vercel
+
+1. Import this repo as a new Vercel project and set **Root Directory** to
+   `web`. Vercel auto-detects Next.js — no extra config needed.
+2. Set `NEXT_PUBLIC_API_URL` to the Railway API's public URL from step 1.5
+   above (e.g. `https://your-api.up.railway.app`).
+3. Deploy. Note the resulting Vercel domain (e.g.
+   `https://your-app.vercel.app`, or your own custom domain if you add one).
+
+### 3. Close the loop: point the API back at the real web URL
+
+1. Back in Railway, update the API service's `FRONTEND_URL` to the Vercel
+   domain from step 2.3. This is both the API's CORS-allowed origin and
+   where the browser gets redirected after Google OAuth — the app won't
+   accept requests from the deployed frontend, and OAuth connect will land
+   on the wrong URL, until this is set correctly.
+2. Update `GOOGLE_REDIRECT_URI` to
+   `https://<your-railway-api-domain>/auth/google/callback`.
+3. In Google Cloud Console, on the same OAuth 2.0 Client ID, add that same
+   URL under **Authorized redirect URIs** (keep the localhost one too if
+   you still want local dev to work).
+4. If the OAuth consent screen is still in "Testing" mode, either add each
+   real user's Google account as a test user, or publish the app (Google
+   review may be required depending on the scopes/verification status).
+5. Redeploy the API (Railway redeploys automatically on variable changes in
+   most configurations; trigger a manual redeploy if it doesn't).
+6. From `/settings` on the deployed web app, click **Connect Google
+   Calendar** to verify the full OAuth round-trip works against the real
+   domains.
+
+### Environment variables by platform
+
+**Railway (`/api` service):**
+
+| Variable | Value |
+| --- | --- |
+| `DATABASE_URL` | from the Railway PostgreSQL plugin (linked automatically) |
+| `GOOGLE_CLIENT_ID` | from Google Cloud Console |
+| `GOOGLE_CLIENT_SECRET` | from Google Cloud Console |
+| `GOOGLE_REDIRECT_URI` | `https://<your-railway-api-domain>/auth/google/callback` |
+| `FRONTEND_URL` | `https://<your-vercel-domain>` |
+| `RESEND_API_KEY` | from resend.com |
+| `FROM_EMAIL` | a verified sender in Resend (your own domain for real production use) |
+
+Not needed in production: `SHADOW_DATABASE_URL` (dev-only), `PORT` (Railway
+sets this itself).
+
+**Vercel (`/web` project):**
+
+| Variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_API_URL` | `https://<your-railway-api-domain>` |
+
 ## Status
 
 - [x] Next.js 14 app scaffolded in `/web`
@@ -459,12 +563,18 @@ happens instead (an `EmailLog` row with `status: "failed"`, nothing thrown).
       send needs your own API key to verify**, see "Email setup" above
 - [x] Real dashboard: upcoming weddings, overdue tasks, today's/week's
       meetings, needs-attention flags — now the default landing page
+- [x] Production-ready: env-driven CORS/API URL (no hardcoded localhost),
+      `prisma migrate deploy` runs automatically on API start, `railway.json`
+      for the `/api` Nixpacks build, both `.env.example` files cover every
+      var actually used in production — see "Deployment" above
 
-**MVP complete.** Everything in the original spec's Phase 1 (MVP) column is
-built and working. Not built (all explicitly out of scope for v1 per the
-spec): Canva integration, multi-tenant support, payments/invoicing, a mobile
-app, and any auth/login layer for the internal app itself (only Google
-Calendar has an OAuth flow — the app's own routes have no access control
-yet, consistent with "1–2 internal users, no complex role system" from the
-spec, but worth calling out before this goes anywhere other people can
-reach it).
+**MVP complete and deployment-ready.** Everything in the original spec's
+Phase 1 (MVP) column is built and working. Not built (all explicitly out of
+scope for v1 per the spec): Canva integration, multi-tenant support,
+payments/invoicing, a mobile app, and any auth/login layer for the internal
+app itself (only Google Calendar has an OAuth flow — the app's own routes
+have no access control yet, consistent with "1–2 internal users, no complex
+role system" from the spec). **This matters more once deployed**: every
+`/clients`, `/weddings`, `/tasks`, etc. endpoint is reachable by anyone who
+finds the Railway URL, with no login. Fine for a quick private demo; add
+auth before real client/vendor data goes anywhere near this in production.

@@ -6,6 +6,7 @@ import {
   handleOAuthCallback,
   isGoogleConfigured,
 } from "../googleCalendar";
+import { getFrontendUrl } from "../utils";
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.get(
       throw new AppError(400, "Missing authorization code");
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
 
     try {
       await handleOAuthCallback(code);

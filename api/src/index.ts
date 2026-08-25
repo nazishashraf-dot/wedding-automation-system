@@ -13,13 +13,15 @@ import dashboardRouter from "./routes/dashboard";
 import adminRouter from "./routes/admin";
 import { errorHandler } from "./errors";
 import { runEmailJob } from "./emailJob";
+import { getFrontendUrl } from "./utils";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const FRONTEND_URL = getFrontendUrl();
 
-app.use(cors());
+app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -51,5 +53,5 @@ cron.schedule("0 8 * * *", () => {
 });
 
 app.listen(PORT, () => {
-  console.log(`API server running on http://localhost:${PORT}`);
+  console.log(`API server running on port ${PORT} (CORS origin: ${FRONTEND_URL})`);
 });
