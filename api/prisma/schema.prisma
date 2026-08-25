@@ -1,13 +1,104 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum ClientStatus {
+  lead
+  active
+  completed
+  archived
+}
+
+enum PlanningStatus {
+  inquiry
+  booked
+  in_progress
+  final_month
+  completed
+}
+
+enum VendorCategory {
+  florist
+  caterer
+  venue
+  photographer
+  dj_band
+  hair_makeup
+  other
+}
+
+enum VendorLinkStatus {
+  contacted
+  quoted
+  confirmed
+}
+
+model Client {
+  id           String       @id @default(uuid())
+  fullName     String
+  partnerName  String?
+  email        String
+  phone        String?
+  status       ClientStatus @default(lead)
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  weddings     Wedding[]
+
+  @@map("clients")
+}
+
+model Wedding {
+  id              String         @id @default(uuid())
+  clientId        String
+  client          Client         @relation(fields: [clientId], references: [id])
+  weddingDate     DateTime
+  venue           String?
+  budgetTotal     Decimal?       @db.Decimal(12, 2)
+  budgetSpent     Decimal        @default(0) @db.Decimal(12, 2)
+  planningStatus  PlanningStatus @default(inquiry)
+  styleNotes      String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  vendors         WeddingVendor[]
+
+  @@map("weddings")
+}
+
+model Vendor {
+  id           String         @id @default(uuid())
+  name         String
+  category     VendorCategory
+  contactEmail String?
+  phone        String?
+  notes        String?
+  createdAt    DateTime       @default(now())
+
+  weddings     WeddingVendor[]
+
+  @@map("vendors")
+}
+
+model WeddingVendor {
+  weddingId    String
+  wedding      Wedding           @relation(fields: [weddingId], references: [id])
+  vendorId     String
+  vendor       Vendor            @relation(fields: [vendorId], references: [id])
+  status       VendorLinkStatus  @default(contacted)
+  priceQuoted  Decimal?          @db.Decimal(12, 2)
+  notes        String?
+
+  @@id([weddingId, vendorId])
+  @@map("wedding_vendors")
 }
