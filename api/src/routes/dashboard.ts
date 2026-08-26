@@ -26,33 +26,30 @@ router.get(
     const sevenDaysOut = new Date(today.getTime() + WEEK_WINDOW_DAYS * DAY_MS);
     const sixtyDaysOut = new Date(today.getTime() + ATTENTION_WINDOW_DAYS * DAY_MS);
 
-    const [upcomingWeddingsRaw, overdueTasksRaw, todayMeetingsRaw, weekMeetingsRaw, attentionCandidates] =
-      await Promise.all([
-        prisma.wedding.findMany({
-          where: { weddingDate: { gte: today, lte: ninetyDaysOut } },
-          orderBy: { weddingDate: "asc" },
-          include: { client: clientSelect },
-        }),
-        prisma.task.findMany({
-          where: { status: { not: "done" }, dueDate: { lt: today } },
-          orderBy: { dueDate: "asc" },
-          include: { wedding: { include: { client: clientSelect } } },
-        }),
-        prisma.calendarEvent.findMany({
-          where: { scheduledAt: { gte: today, lt: tomorrow } },
-          orderBy: { scheduledAt: "asc" },
-          include: { wedding: { include: { client: clientSelect } } },
-        }),
-        prisma.calendarEvent.findMany({
-          where: { scheduledAt: { gte: today, lte: sevenDaysOut } },
-          orderBy: { scheduledAt: "asc" },
-          include: { wedding: { include: { client: clientSelect } } },
-        }),
-        prisma.wedding.findMany({
-          where: { weddingDate: { gte: today, lte: sixtyDaysOut } },
-          include: { client: clientSelect, vendors: true, tasks: true },
-        }),
-      ]);
+    const upcomingWeddingsRaw = await prisma.wedding.findMany({
+      where: { weddingDate: { gte: today, lte: ninetyDaysOut } },
+      orderBy: { weddingDate: "asc" },
+      include: { client: clientSelect },
+    });
+    const overdueTasksRaw = await prisma.task.findMany({
+      where: { status: { not: "done" }, dueDate: { lt: today } },
+      orderBy: { dueDate: "asc" },
+      include: { wedding: { include: { client: clientSelect } } },
+    });
+    const todayMeetingsRaw = await prisma.calendarEvent.findMany({
+      where: { scheduledAt: { gte: today, lt: tomorrow } },
+      orderBy: { scheduledAt: "asc" },
+      include: { wedding: { include: { client: clientSelect } } },
+    });
+    const weekMeetingsRaw = await prisma.calendarEvent.findMany({
+      where: { scheduledAt: { gte: today, lte: sevenDaysOut } },
+      orderBy: { scheduledAt: "asc" },
+      include: { wedding: { include: { client: clientSelect } } },
+    });
+    const attentionCandidates = await prisma.wedding.findMany({
+      where: { weddingDate: { gte: today, lte: sixtyDaysOut } },
+      include: { client: clientSelect, vendors: true, tasks: true },
+    });
 
     const upcomingWeddings = upcomingWeddingsRaw.map((w) => ({
       id: w.id,

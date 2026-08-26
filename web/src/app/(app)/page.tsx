@@ -12,6 +12,9 @@ import {
   planningStatusLabel,
   taskPriorityLabel,
 } from "@/lib/format";
+import SectionHeading from "@/components/SectionHeading";
+import Badge from "@/components/Badge";
+import { cardClass, planningStatusTone } from "@/lib/ui";
 
 function coupleName(client: { fullName: string; partnerName: string | null }): string {
   return client.partnerName ? `${client.fullName} & ${client.partnerName}` : client.fullName;
@@ -28,157 +31,178 @@ export default function DashboardPage() {
   }, []);
 
   if (error) {
-    return <p className="text-sm text-red-600">{error}</p>;
+    return <p className="text-sm text-rose-700">{error}</p>;
   }
 
   if (!data) {
-    return <p className="text-sm text-neutral-500">Loading...</p>;
+    return <p className="text-sm text-plum-400">Loading...</p>;
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Dashboard</h1>
+    <div className="-mx-4 -mt-10 bg-wash-blush px-4 pb-16 pt-10 sm:-mx-6 sm:px-6">
+      <div className="space-y-8">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-gold-700">
+            Wedding Studio
+          </p>
+          <h1 className="font-heading text-3xl font-semibold text-wine-600">Dashboard</h1>
+          <p className="mt-1 text-sm text-plum-400">
+            Everything that needs your attention today, in one place.
+          </p>
+        </div>
 
-      {data.needsAttention.length > 0 && (
-        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-amber-900">Needs Attention</h2>
-          <ul className="space-y-2">
-            {data.needsAttention.map((item) => (
-              <li key={item.weddingId}>
-                <Link
-                  href={`/weddings/${item.weddingId}`}
-                  className="flex items-center justify-between rounded-md bg-white px-3 py-2 text-sm hover:bg-amber-100/50"
-                >
-                  <span className="font-medium text-neutral-900">
-                    {coupleName(item.client)}
-                    <span className="ml-2 font-normal text-neutral-500">
-                      {formatCountdown(item.daysUntil)}
-                    </span>
-                  </span>
-                  <span className="text-xs text-amber-700">{item.reasons.join(" · ")}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border border-neutral-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-neutral-900">Today&apos;s Meetings</h2>
-          {data.todayMeetings.length === 0 ? (
-            <p className="text-sm text-neutral-400">No meetings today.</p>
-          ) : (
-            <ul className="space-y-2">
-              {data.todayMeetings.map((m) => (
-                <li key={m.id}>
+        {data.needsAttention.length > 0 && (
+          <section>
+            <SectionHeading>Needs Attention</SectionHeading>
+            <ul className="space-y-2.5">
+              {data.needsAttention.map((item) => (
+                <li key={item.weddingId}>
                   <Link
-                    href={`/weddings/${m.wedding.id}`}
-                    className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-neutral-50"
+                    href={`/weddings/${item.weddingId}`}
+                    className="flex flex-col gap-2 rounded-card border-l-4 border-l-rose-500 bg-paper px-4 py-3 shadow-soft transition-colors hover:bg-rose-50/40 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <span>
-                      <span className="font-medium">{m.title}</span>
-                      <span className="ml-2 text-neutral-500">{coupleName(m.wedding.client)}</span>
+                    <span className="font-heading text-base font-semibold text-plum">
+                      {coupleName(item.client)}
+                      <span className="ml-2 font-sans text-sm font-normal text-plum-400">
+                        {formatCountdown(item.daysUntil)}
+                      </span>
                     </span>
-                    <span className="text-xs text-neutral-400">{formatDateTime(m.scheduledAt)}</span>
+                    <span className="flex flex-wrap gap-1.5">
+                      {item.reasons.map((reason) => (
+                        <Badge key={reason} tone="rose">
+                          {reason}
+                        </Badge>
+                      ))}
+                    </span>
                   </Link>
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <section className={cardClass}>
+            <SectionHeading>Today&apos;s Meetings</SectionHeading>
+            {data.todayMeetings.length === 0 ? (
+              <p className="text-sm text-plum-400">No meetings today.</p>
+            ) : (
+              <ul className="space-y-1">
+                {data.todayMeetings.map((m) => (
+                  <li key={m.id}>
+                    <Link
+                      href={`/weddings/${m.wedding.id}`}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-ivory-100"
+                    >
+                      <span>
+                        <span className="font-medium text-plum">{m.title}</span>
+                        <span className="ml-2 text-plum-400">{coupleName(m.wedding.client)}</span>
+                      </span>
+                      <span className="text-xs text-gold-700">{formatDateTime(m.scheduledAt)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className={cardClass}>
+            <SectionHeading>This Week&apos;s Meetings</SectionHeading>
+            {data.weekMeetings.length === 0 ? (
+              <p className="text-sm text-plum-400">No meetings this week.</p>
+            ) : (
+              <ul className="space-y-1">
+                {data.weekMeetings.map((m) => (
+                  <li key={m.id}>
+                    <Link
+                      href={`/weddings/${m.wedding.id}`}
+                      className="flex items-center justify-between rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-ivory-100"
+                    >
+                      <span>
+                        <span className="font-medium text-plum">{m.title}</span>
+                        <span className="ml-2 text-plum-400">{coupleName(m.wedding.client)}</span>
+                        <span className="ml-2 text-xs text-plum-400">
+                          {meetingTypeLabel(m.type)}
+                        </span>
+                      </span>
+                      <span className="text-xs text-gold-700">{formatDateTime(m.scheduledAt)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <section className={cardClass}>
+          <SectionHeading>Overdue Tasks</SectionHeading>
+          {data.overdueTasks.length === 0 ? (
+            <p className="text-sm text-plum-400">Nothing overdue. Nice work.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-gold-100">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Task</th>
+                    <th className="px-3 py-2 font-medium">Wedding</th>
+                    <th className="px-3 py-2 font-medium">Priority</th>
+                    <th className="px-3 py-2 font-medium">Overdue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gold-100">
+                  {data.overdueTasks.map((task) => (
+                    <tr key={task.id} className="hover:bg-ivory-100/60">
+                      <td className="px-3 py-2 font-medium text-plum">{task.title}</td>
+                      <td className="px-3 py-2">
+                        <Link
+                          href={`/weddings/${task.wedding.id}`}
+                          className="text-wine-500 hover:underline"
+                        >
+                          {coupleName(task.wedding.client)}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2 text-plum-600">{taskPriorityLabel(task.priority)}</td>
+                      <td className="px-3 py-2">
+                        <Badge tone="rose">{formatOverdue(task.daysOverdue)}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 
-        <section className="rounded-lg border border-neutral-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-neutral-900">This Week&apos;s Meetings</h2>
-          {data.weekMeetings.length === 0 ? (
-            <p className="text-sm text-neutral-400">No meetings this week.</p>
+        <section className={cardClass}>
+          <SectionHeading>Upcoming Weddings</SectionHeading>
+          {data.upcomingWeddings.length === 0 ? (
+            <p className="text-sm text-plum-400">Nothing in the next 90 days.</p>
           ) : (
-            <ul className="space-y-2">
-              {data.weekMeetings.map((m) => (
-                <li key={m.id}>
-                  <Link
-                    href={`/weddings/${m.wedding.id}`}
-                    className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-neutral-50"
-                  >
-                    <span>
-                      <span className="font-medium">{m.title}</span>
-                      <span className="ml-2 text-neutral-500">{coupleName(m.wedding.client)}</span>
-                      <span className="ml-2 text-xs text-neutral-400">
-                        {meetingTypeLabel(m.type)}
-                      </span>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {data.upcomingWeddings.map((w) => (
+                <Link
+                  key={w.id}
+                  href={`/weddings/${w.id}`}
+                  className="rounded-card border border-gold-100 bg-white p-4 transition-shadow hover:shadow-soft"
+                >
+                  <p className="font-heading text-lg font-semibold text-plum">
+                    {coupleName(w.client)}
+                  </p>
+                  <p className="mt-0.5 text-sm text-plum-400">{formatDate(w.weddingDate)}</p>
+                  <div className="mt-3 flex items-center justify-between">
+                    <Badge tone={planningStatusTone(w.planningStatus)}>
+                      {planningStatusLabel(w.planningStatus)}
+                    </Badge>
+                    <span className="rounded-full bg-wine-500 px-2.5 py-1 text-xs font-medium text-ivory">
+                      {formatCountdown(w.daysUntil)}
                     </span>
-                    <span className="text-xs text-neutral-400">{formatDateTime(m.scheduledAt)}</span>
-                  </Link>
-                </li>
+                  </div>
+                </Link>
               ))}
-            </ul>
+            </div>
           )}
         </section>
       </div>
-
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-neutral-900">Overdue Tasks</h2>
-        {data.overdueTasks.length === 0 ? (
-          <p className="text-sm text-neutral-400">Nothing overdue. Nice work.</p>
-        ) : (
-          <div className="overflow-hidden rounded-md border border-neutral-100">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-neutral-50 text-xs uppercase text-neutral-500">
-                <tr>
-                  <th className="px-3 py-2">Task</th>
-                  <th className="px-3 py-2">Wedding</th>
-                  <th className="px-3 py-2">Priority</th>
-                  <th className="px-3 py-2">Overdue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {data.overdueTasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-neutral-50">
-                    <td className="px-3 py-2 font-medium">{task.title}</td>
-                    <td className="px-3 py-2">
-                      <Link href={`/weddings/${task.wedding.id}`} className="hover:underline">
-                        {coupleName(task.wedding.client)}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">{taskPriorityLabel(task.priority)}</td>
-                    <td className="px-3 py-2 font-medium text-red-600">
-                      {formatOverdue(task.daysOverdue)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-lg border border-neutral-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-neutral-900">Upcoming Weddings</h2>
-        {data.upcomingWeddings.length === 0 ? (
-          <p className="text-sm text-neutral-400">Nothing in the next 90 days.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.upcomingWeddings.map((w) => (
-              <Link
-                key={w.id}
-                href={`/weddings/${w.id}`}
-                className="rounded-md border border-neutral-200 p-3 hover:border-neutral-400"
-              >
-                <p className="font-medium text-neutral-900">{coupleName(w.client)}</p>
-                <p className="mt-1 text-sm text-neutral-500">{formatDate(w.weddingDate)}</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-xs text-neutral-400">
-                    {planningStatusLabel(w.planningStatus)}
-                  </span>
-                  <span className="rounded-full bg-neutral-900 px-2 py-0.5 text-xs font-medium text-white">
-                    {formatCountdown(w.daysUntil)}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

@@ -3,25 +3,54 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #faf6f0;
+  --foreground: #241419;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading), Georgia, serif;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* The signature detail: a thin gold hairline under section headers. */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding-bottom: 0.625rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid theme("colors.gold.300");
+  }
+
+  .section-heading__title {
+    font-family: var(--font-heading), Georgia, serif;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: theme("colors.wine.600");
+  }
+}
+
+/* Consistent, visible focus rings for accessibility across inputs, selects,
+   buttons and links — deep wine, offset from the ivory background. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid theme("colors.wine.400");
+  outline-offset: 2px;
 }
