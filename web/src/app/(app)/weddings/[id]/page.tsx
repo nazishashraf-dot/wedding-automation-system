@@ -75,6 +75,85 @@ function formatMonthYear(value: string): string {
 
 const linkWine = "text-xs font-medium text-wine-500 hover:text-wine-600 hover:underline";
 
+// Click-to-edit price, used for a linked vendor's "Price quoted" — no
+// modal, no page navigation, just swaps the display text for a small input
+// in place (same lightweight feel as the status dropdown next to it).
+function InlinePriceEditor({
+  value,
+  onSave,
+}: {
+  value: string | null;
+  onSave: (price: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(value ?? "");
+          setEditing(true);
+        }}
+        className="rounded text-sm text-plum-600 underline decoration-dotted underline-offset-2 transition-colors hover:text-wine-500"
+        title="Click to edit price"
+      >
+        {formatMoney(value)}
+      </button>
+    );
+  }
+
+  async function handleSave() {
+    const num = Number(draft);
+    if (draft === "" || Number.isNaN(num) || num < 0) return;
+    setSaving(true);
+    try {
+      await onSave(num);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        autoFocus
+        type="number"
+        min="0"
+        step="0.01"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleSave();
+          }
+          if (e.key === "Escape") setEditing(false);
+        }}
+        className="w-24 rounded-lg border border-gold-200 bg-white px-2 py-1 text-sm text-plum focus:border-wine-400 focus:outline-none"
+      />
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="text-xs font-medium text-sage-700 hover:text-sage-900 disabled:opacity-50"
+      >
+        {saving ? "..." : "Save"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        className="text-xs font-medium text-plum-400 hover:text-plum-600"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 export default function WeddingDetailPage({
   params,
 }: {
@@ -91,6 +170,7 @@ export default function WeddingDetailPage({
   const [budgetSaved, setBudgetSaved] = useState(false);
 
   const [selectedVendorId, setSelectedVendorId] = useState("");
+  const [linkPriceQuoted, setLinkPriceQuoted] = useState("");
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
 
@@ -305,8 +385,13 @@ export default function WeddingDetailPage({
     setLinking(true);
     setLinkError(null);
     try {
-      await linkVendorToWedding(id, { vendorId: selectedVendorId, status: "contacted" });
+      await linkVendorToWedding(id, {
+        vendorId: selectedVendorId,
+        status: "contacted",
+        priceQuoted: linkPriceQuoted === "" ? undefined : Number(linkPriceQuoted),
+      });
       setSelectedVendorId("");
+      setLinkPriceQuoted("");
       await refresh();
     } catch (err) {
       setLinkError(err instanceof ApiError ? err.message : "Failed to link vendor");
@@ -323,6 +408,15 @@ export default function WeddingDetailPage({
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to update vendor status");
+    }
+  }
+
+  async function handleVendorPriceChange(vendorId: string, priceQuoted: number) {
+    try {
+      await updateWeddingVendorLink(id, vendorId, { priceQuoted });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to update vendor price");
     }
   }
 
@@ -1086,7 +1180,10 @@ export default function WeddingDetailPage({
                       <option value="quoted">Quoted</option>
                       <option value="confirmed">Confirmed</option>
                     </select>
-                    <span className="text-sm text-plum-600">{formatMoney(link.priceQuoted)}</span>
+                    <InlinePriceEditor
+                      value={link.priceQuoted}
+                      onSave={(price) => handleVendorPriceChange(link.vendorId, price)}
+                    />
                   </div>
                 </div>
               ))}
@@ -1121,7 +1218,12 @@ export default function WeddingDetailPage({
                           <option value="confirmed">Confirmed</option>
                         </select>
                       </td>
-                      <td className="px-3 py-2 text-plum-600">{formatMoney(link.priceQuoted)}</td>
+                      <td className="px-3 py-2 text-plum-600">
+                        <InlinePriceEditor
+                          value={link.priceQuoted}
+                          onSave={(price) => handleVendorPriceChange(link.vendorId, price)}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1145,6 +1247,20 @@ export default function WeddingDetailPage({
                 </option>
               ))}
             </select>
+          </div>
+          <div className="sm:w-40">
+            <label className="mb-1 block text-xs font-medium text-plum-600">
+              Price quoted (optional)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              className={inputClass}
+              value={linkPriceQuoted}
+              onChange={(e) => setLinkPriceQuoted(e.target.value)}
+            />
           </div>
           <button type="submit" disabled={linking || !selectedVendorId} className={btnPrimary}>
             {linking ? "Linking..." : "Link Vendor"}
