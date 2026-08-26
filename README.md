@@ -469,15 +469,32 @@ and update the API's URLs once you know where the web app actually landed.
    step and to finish configuring Google OAuth.
 6. Optional: seed the production database with the demo timeline
    rules/email templates/sample data (or just the rules/templates — see
-   below) by running `npm run seed` against the production `DATABASE_URL`,
-   e.g. via `railway run npm run seed` from your machine with the Railway
-   CLI linked to the service, or by temporarily pointing your local
-   `api/.env`'s `DATABASE_URL` at the production database and running
-   `npm run seed` locally. **The seed script includes 3 demo clients/
-   weddings/vendors** — skip it or delete that demo data afterward if you
-   don't want it in a real production database; at minimum you'll want the
-   11 `TimelineRule` rows and 5 `EmailTemplate` rows the app depends on,
-   which the same seed script also creates.
+   "Before going live with a real client" below). The seed script
+   (`npm run seed`) is idempotent — safe to run repeatedly against the same
+   database, it upserts rather than duplicating.
+
+   **`railway run npm run seed` does not work for this** — it injects the
+   Postgres service's *internal* `DATABASE_URL`
+   (`postgres.railway.internal`), which only resolves inside Railway's
+   private network and isn't reachable from your machine. To seed from
+   your local machine, expose the database temporarily:
+   ```bash
+   # From /api, with the Railway CLI linked to this project:
+   railway tcp-proxy create --port 5432 --service Postgres --json
+   # Prints an endpoint like tokaido.proxy.rlwy.net:41703 — build a
+   # connection string from that host:port plus the Postgres service's
+   # user/password/db (railway variables --service Postgres --kv).
+
+   DATABASE_URL="postgresql://postgres:<password>@<proxy-host>:<proxy-port>/railway" npm run seed
+   ```
+   Use it as a one-off shell env var, never write the public URL into
+   `.env` or any tracked file. When you're done, tear the proxy back down
+   — it otherwise leaves production Postgres reachable from the public
+   internet indefinitely (password-protected, but still exposed):
+   ```bash
+   railway tcp-proxy list --service Postgres --json   # get the proxy id
+   railway tcp-proxy delete <proxy-id> --service Postgres --yes
+   ```
 
 ### 2. Deploy the web app to Vercel
 
@@ -531,6 +548,32 @@ sets this itself).
 | Variable | Value |
 | --- | --- |
 | `NEXT_PUBLIC_API_URL` | `https://<your-railway-api-domain>` |
+
+## Before going live with a real client
+
+The production database currently has the seed script's demo data in it (3
+clients/weddings, 5 vendors, on top of the 11 `TimelineRule` and 5
+`EmailTemplate` rows the app actually depends on). Fine for a portfolio demo
+— **not** fine once this is handling a real client's real data:
+
+- **Delete the 3 demo clients/weddings/vendors** before onboarding a real
+  client. Order matters for foreign keys: delete each demo wedding's
+  `Task`/`CalendarEvent`/`EmailLog`/`WeddingVendor` rows first, then the
+  `Wedding`, then the `Client`; delete the 5 demo `Vendor` rows once nothing
+  references them. (The 11 `TimelineRule` and 5 `EmailTemplate` rows should
+  stay — those are the real configuration, not demo data.)
+- **The daily email job doesn't know the demo clients aren't real.** Their
+  seeded task due dates are fixed at seed time; if any of them ever fall
+  within the due-soon (3-day) or overdue re-nudge windows, `runEmailJob`
+  will try to send `milestone_reminder`/`task_overdue` emails to their
+  `@example.com` addresses. `example.com` is IANA-reserved and never
+  resolves to a real inbox, so this fails harmlessly (logged as
+  `status: "failed"` in `EmailLog`) rather than actually reaching anyone —
+  but it's still wasted Resend sends and log noise. Delete the demo data
+  (above) or disable the cron schedule in `src/index.ts` before relying on
+  email automation for a real wedding.
+- **No auth on the app's own routes** (noted in Status below too) — add one
+  before real client/vendor data is reachable by anyone who finds the URL.
 
 ## Status
 
