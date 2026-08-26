@@ -35,8 +35,8 @@ export default function NavBar() {
   }
 
   return (
-    <nav className="relative bg-wine-500">
-      <div className="mx-auto flex max-w-[1600px] items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-10 xl:px-14">
+    <nav className="relative z-30 bg-wine-500">
+      <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 lg:px-10 xl:px-14">
         <span className="shrink-0 font-heading text-xl font-semibold tracking-wide text-ivory">
           Wedding&nbsp;Studio
         </span>
