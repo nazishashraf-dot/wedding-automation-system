@@ -1,6 +1,7 @@
 import { NextFunction, Request, RequestHandler, Response } from "express";
 import { ZodError, ZodType } from "zod";
 import multer from "multer";
+import { BlobError } from "@vercel/blob";
 
 export class AppError extends Error {
   status: number;
@@ -60,6 +61,16 @@ export function errorHandler(
         ? "File is too large (max 10MB)"
         : `Upload failed: ${err.message}`;
     res.status(400).json({ error: { message } });
+    return;
+  }
+
+  if (err instanceof BlobError) {
+    // Surfaces store/config problems (e.g. a token pointed at a
+    // private-access store) as a real message instead of a generic 500 —
+    // this is exactly what was silently swallowed before and had to be
+    // dug out of Railway logs.
+    console.error("Vercel Blob error:", err);
+    res.status(502).json({ error: { message: `File storage error: ${err.message}` } });
     return;
   }
 
