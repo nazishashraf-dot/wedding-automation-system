@@ -10,6 +10,7 @@ const UPCOMING_WINDOW_DAYS = 90;
 const WEEK_WINDOW_DAYS = 7;
 const ATTENTION_WINDOW_DAYS = 60;
 const ATTENTION_OVERDUE_THRESHOLD = 3;
+const ATTENTION_OVERDUE_PAYMENT_THRESHOLD = 1;
 
 function daysBetween(from: Date, to: Date): number {
   return Math.round((to.getTime() - from.getTime()) / DAY_MS);
@@ -36,6 +37,14 @@ router.get(
       orderBy: { dueDate: "asc" },
       include: { wedding: { include: { client: clientSelect } } },
     });
+    const overduePaymentsRaw = await prisma.payment.findMany({
+      where: { status: "pending", dueDate: { lt: today } },
+      orderBy: { dueDate: "asc" },
+      include: {
+        wedding: { include: { client: clientSelect } },
+        vendor: { select: { id: true, name: true } },
+      },
+    });
     const todayMeetingsRaw = await prisma.calendarEvent.findMany({
       where: { scheduledAt: { gte: today, lt: tomorrow } },
       orderBy: { scheduledAt: "asc" },
@@ -48,7 +57,7 @@ router.get(
     });
     const attentionCandidates = await prisma.wedding.findMany({
       where: { weddingDate: { gte: today, lte: sixtyDaysOut } },
-      include: { client: clientSelect, vendors: true, tasks: true },
+      include: { client: clientSelect, vendors: true, tasks: true, payments: true },
     });
 
     const upcomingWeddings = upcomingWeddingsRaw.map((w) => ({
@@ -73,6 +82,21 @@ router.get(
       },
     }));
 
+    const overduePayments = overduePaymentsRaw.map((p) => ({
+      id: p.id,
+      description: p.description,
+      direction: p.direction,
+      amount: p.amount,
+      dueDate: p.dueDate,
+      daysOverdue: daysBetween(p.dueDate, today),
+      vendor: p.vendor,
+      wedding: {
+        id: p.wedding.id,
+        weddingDate: p.wedding.weddingDate,
+        client: p.wedding.client,
+      },
+    }));
+
     const mapMeeting = (m: (typeof todayMeetingsRaw)[number]) => ({
       id: m.id,
       title: m.title,
@@ -87,11 +111,17 @@ router.get(
         const overdueTaskCount = w.tasks.filter(
           (t) => t.status !== "done" && t.dueDate < today
         ).length;
+        const overduePaymentCount = w.payments.filter(
+          (p) => p.status !== "paid" && p.dueDate < today
+        ).length;
 
         const reasons: string[] = [];
         if (confirmedVendorCount === 0) reasons.push("No vendors confirmed yet");
         if (overdueTaskCount >= ATTENTION_OVERDUE_THRESHOLD) {
           reasons.push(`${overdueTaskCount} overdue tasks`);
+        }
+        if (overduePaymentCount >= ATTENTION_OVERDUE_PAYMENT_THRESHOLD) {
+          reasons.push(`${overduePaymentCount} overdue payment${overduePaymentCount === 1 ? "" : "s"}`);
         }
 
         return {
@@ -108,6 +138,7 @@ router.get(
     res.json({
       upcomingWeddings,
       overdueTasks,
+      overduePayments,
       todayMeetings: todayMeetingsRaw.map(mapMeeting),
       weekMeetings: weekMeetingsRaw.map(mapMeeting),
       needsAttention,

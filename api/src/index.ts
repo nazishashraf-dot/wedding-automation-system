@@ -10,6 +10,7 @@ import tasksRouter from "./routes/tasks";
 import authRouter from "./routes/auth";
 import meetingsRouter from "./routes/meetings";
 import documentsRouter from "./routes/documents";
+import paymentsRouter from "./routes/payments";
 import formsRouter from "./routes/forms";
 import dashboardRouter from "./routes/dashboard";
 import adminRouter from "./routes/admin";
@@ -44,6 +45,7 @@ app.use("/vendors", requireAuth, vendorsRouter);
 app.use("/tasks", requireAuth, tasksRouter);
 app.use("/meetings", requireAuth, meetingsRouter);
 app.use("/documents", requireAuth, documentsRouter);
+app.use("/payments", requireAuth, paymentsRouter);
 app.use("/dashboard", requireAuth, dashboardRouter);
 app.use("/admin", requireAuth, adminRouter);
 

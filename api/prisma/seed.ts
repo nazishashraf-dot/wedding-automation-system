@@ -70,6 +70,16 @@ const EMAIL_TEMPLATES: Array<{ key: string; subject: string; bodyTemplate: strin
       "Your Wedding Planning Team",
   },
   {
+    key: "payment_reminder",
+    subject: "Payment reminder: {{description}}",
+    bodyTemplate:
+      "Hi {{recipientName}},\n\n" +
+      "This is a reminder that a payment — {{description}}, {{amount}} — is due on {{dueDate}}, " +
+      "related to the wedding on {{weddingDate}}.{{statusNote}}\n\n" +
+      "Please let us know if you have any questions.\n\n" +
+      "Warmly,\nYour Wedding Planning Team",
+  },
+  {
     key: "status_checkin",
     subject: "How's wedding planning going, {{clientName}}?",
     bodyTemplate:

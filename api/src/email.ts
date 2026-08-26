@@ -15,6 +15,7 @@ interface SendTemplatedEmailInput {
   recipientEmail: string;
   vars: Record<string, string>;
   relatedTaskId?: string;
+  relatedPaymentId?: string;
 }
 
 export class TemplateNotFoundError extends Error {
@@ -75,6 +76,7 @@ export async function sendTemplatedEmail(input: SendTemplatedEmailInput) {
       subject,
       status,
       relatedTaskId: input.relatedTaskId,
+      relatedPaymentId: input.relatedPaymentId,
     },
   });
 }

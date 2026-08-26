@@ -18,6 +18,8 @@ export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high";
 export type TaskSource = "auto_generated" | "manual";
 export type CalendarEventType = "milestone" | "client_meeting" | "vendor_meeting" | "reminder";
+export type PaymentDirection = "incoming" | "outgoing";
+export type PaymentStatus = "pending" | "paid";
 
 export interface WeddingSummary {
   id: string;
@@ -78,6 +80,9 @@ export interface Wedding {
   updatedAt: string;
   client?: ClientSummary;
   vendors?: WeddingVendorLink[];
+  // Derived from paid Payments at read time — see GET /weddings/:id.
+  totalSpent: string | number;
+  totalCollected: string | number;
 }
 
 export interface Meeting {
@@ -130,6 +135,24 @@ export interface Task {
   };
 }
 
+export interface Payment {
+  id: string;
+  weddingId: string;
+  vendorId: string | null;
+  vendor: { id: string; name: string } | null;
+  direction: PaymentDirection;
+  description: string;
+  amount: string;
+  dueDate: string;
+  paidDate: string | null;
+  status: PaymentStatus;
+  method: string | null;
+  notes: string | null;
+  createdAt: string;
+  overdue: boolean;
+  wedding?: { id: string; weddingDate: string; client: ClientSummary };
+}
+
 export interface RegenerateTimelineResult {
   created: number;
   skippedPast: number;
@@ -170,9 +193,21 @@ export interface DashboardAttentionItem {
   reasons: string[];
 }
 
+export interface DashboardPayment {
+  id: string;
+  description: string;
+  direction: PaymentDirection;
+  amount: string;
+  dueDate: string;
+  daysOverdue: number;
+  vendor: { id: string; name: string } | null;
+  wedding: { id: string; weddingDate: string; client: ClientSummary };
+}
+
 export interface DashboardData {
   upcomingWeddings: DashboardWedding[];
   overdueTasks: DashboardTask[];
+  overduePayments: DashboardPayment[];
   todayMeetings: DashboardMeeting[];
   weekMeetings: DashboardMeeting[];
   needsAttention: DashboardAttentionItem[];
@@ -454,6 +489,45 @@ export function uploadWeddingDocument(
 }
 
 export const deleteDocument = (id: string) => request<void>(`/documents/${id}`, { method: "DELETE" });
+
+// Payments
+export const listWeddingPayments = (
+  weddingId: string,
+  params?: { direction?: PaymentDirection; status?: PaymentStatus }
+) => {
+  const search = new URLSearchParams();
+  if (params?.direction) search.set("direction", params.direction);
+  if (params?.status) search.set("status", params.status);
+  const qs = search.toString();
+  return request<Payment[]>(`/weddings/${weddingId}/payments${qs ? `?${qs}` : ""}`);
+};
+export const createWeddingPayment = (
+  weddingId: string,
+  data: {
+    vendorId?: string;
+    direction: PaymentDirection;
+    description: string;
+    amount: number;
+    dueDate: string;
+    method?: string;
+    notes?: string;
+  }
+) => request<Payment>(`/weddings/${weddingId}/payments`, { method: "POST", body: JSON.stringify(data) });
+export const updatePayment = (
+  id: string,
+  data: Partial<{
+    vendorId: string | null;
+    description: string;
+    amount: number;
+    dueDate: string;
+    paidDate: string | null;
+    status: PaymentStatus;
+    method: string;
+    notes: string;
+  }>
+) => request<Payment>(`/payments/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deletePayment = (id: string) => request<void>(`/payments/${id}`, { method: "DELETE" });
+export const listOverduePayments = () => request<Payment[]>("/payments?overdue=true");
 
 // Vendors
 export const listVendors = (category?: VendorCategory) =>

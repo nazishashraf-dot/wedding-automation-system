@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { AppError, asyncHandler, notFound, validateBody } from "../errors";
 import { requireOwner } from "../middleware/auth";
-import { getFrontendUrl, param, withOverdueFlag } from "../utils";
+import { getFrontendUrl, param, withOverdueFlag, withPaymentOverdueFlag } from "../utils";
 import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../timeline";
 import { pushCalendarEventCreate } from "../googleCalendar";
 import { TemplateNotFoundError, sendTemplatedEmail } from "../email";
@@ -82,6 +82,24 @@ const sendEmailSchema = z.object({
   recipientEmail: z.string().email("recipientEmail must be a valid email address"),
 });
 
+const paymentDirectionEnum = z.enum(["incoming", "outgoing"]);
+const paymentStatusEnum = z.enum(["pending", "paid"]);
+
+const createPaymentSchema = z
+  .object({
+    vendorId: z.string().uuid("vendorId must be a valid UUID").optional(),
+    direction: paymentDirectionEnum,
+    description: z.string().min(1, "description is required"),
+    amount: z.coerce.number().positive("amount must be greater than 0"),
+    dueDate: z.coerce.date(),
+    method: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .refine((data) => data.direction === "outgoing" || data.vendorId === undefined, {
+    message: "vendorId can only be set for outgoing payments",
+    path: ["vendorId"],
+  });
+
 const weddingDetailInclude = {
   client: true,
   vendors: {
@@ -105,12 +123,29 @@ router.get(
 router.get(
   "/:id",
   asyncHandler(async (req, res) => {
+    const id = param(req, "id");
     const wedding = await prisma.wedding.findUnique({
-      where: { id: param(req, "id") },
+      where: { id },
       include: weddingDetailInclude,
     });
     if (!wedding) throw notFound("Wedding");
-    res.json(wedding);
+
+    const [spentAgg, collectedAgg] = await Promise.all([
+      prisma.payment.aggregate({
+        where: { weddingId: id, direction: "outgoing", status: "paid" },
+        _sum: { amount: true },
+      }),
+      prisma.payment.aggregate({
+        where: { weddingId: id, direction: "incoming", status: "paid" },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    res.json({
+      ...wedding,
+      totalSpent: spentAgg._sum.amount ?? 0,
+      totalCollected: collectedAgg._sum.amount ?? 0,
+    });
   })
 );
 
@@ -182,6 +217,7 @@ router.delete(
       prisma.task.deleteMany({ where: { weddingId: id } }),
       prisma.weddingVendor.deleteMany({ where: { weddingId: id } }),
       prisma.document.deleteMany({ where: { weddingId: id } }),
+      prisma.payment.deleteMany({ where: { weddingId: id } }),
       prisma.wedding.delete({ where: { id } }),
     ]);
     res.status(204).send();
@@ -426,6 +462,62 @@ router.post(
       include: documentInclude,
     });
     res.status(201).json(document);
+  })
+);
+
+const paymentVendorSelect = { select: { id: true, name: true } } as const;
+
+router.get(
+  "/:id/payments",
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const { direction, status } = req.query;
+    const where: {
+      weddingId: string;
+      direction?: "incoming" | "outgoing";
+      status?: "pending" | "paid";
+    } = { weddingId };
+    if (direction !== undefined) {
+      const parsed = paymentDirectionEnum.safeParse(direction);
+      if (!parsed.success) throw new AppError(400, "Invalid direction filter", parsed.error.flatten());
+      where.direction = parsed.data;
+    }
+    if (status !== undefined) {
+      const parsed = paymentStatusEnum.safeParse(status);
+      if (!parsed.success) throw new AppError(400, "Invalid status filter", parsed.error.flatten());
+      where.status = parsed.data;
+    }
+
+    const payments = await prisma.payment.findMany({
+      where,
+      orderBy: { dueDate: "asc" },
+      include: { vendor: paymentVendorSelect },
+    });
+    res.json(payments.map(withPaymentOverdueFlag));
+  })
+);
+
+router.post(
+  "/:id/payments",
+  validateBody(createPaymentSchema),
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    if (req.body.vendorId) {
+      const vendor = await prisma.vendor.findUnique({ where: { id: req.body.vendorId } });
+      if (!vendor) throw notFound("Vendor");
+    }
+
+    const payment = await prisma.payment.create({
+      data: { ...req.body, weddingId, status: "pending" },
+      include: { vendor: paymentVendorSelect },
+    });
+    res.status(201).json(withPaymentOverdueFlag(payment));
   })
 );
 

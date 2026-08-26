@@ -7,6 +7,7 @@ import {
   formatCountdown,
   formatDate,
   formatDateTime,
+  formatMoney,
   formatOverdue,
   meetingTypeLabel,
   planningStatusLabel,
@@ -194,6 +195,51 @@ export default function DashboardPage() {
                       <td className="px-3 py-2 text-plum-600">{taskPriorityLabel(task.priority)}</td>
                       <td className="px-3 py-2">
                         <Badge tone="rose">{formatOverdue(task.daysOverdue)}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section className={cardClass}>
+          <SectionHeading>Overdue Payments</SectionHeading>
+          {data.overduePayments.length === 0 ? (
+            <p className="text-sm text-plum-400">No overdue payments.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-gold-100">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Description</th>
+                    <th className="px-3 py-2 font-medium">Wedding</th>
+                    <th className="px-3 py-2 font-medium">Direction</th>
+                    <th className="px-3 py-2 font-medium">Amount</th>
+                    <th className="px-3 py-2 font-medium">Overdue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gold-100">
+                  {data.overduePayments.map((payment) => (
+                    <tr key={payment.id} className="hover:bg-ivory-100/60">
+                      <td className="px-3 py-2 font-medium text-plum">{payment.description}</td>
+                      <td className="px-3 py-2">
+                        <Link
+                          href={`/weddings/${payment.wedding.id}`}
+                          className="text-wine-500 hover:underline"
+                        >
+                          {coupleName(payment.wedding.client)}
+                        </Link>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge tone={payment.direction === "incoming" ? "sage" : "gold"}>
+                          {payment.direction === "incoming" ? "From Client" : "To Vendor"}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-plum-600">{formatMoney(payment.amount)}</td>
+                      <td className="px-3 py-2">
+                        <Badge tone="rose">{formatOverdue(payment.daysOverdue)}</Badge>
                       </td>
                     </tr>
                   ))}

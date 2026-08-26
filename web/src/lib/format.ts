@@ -87,6 +87,14 @@ export function formatOverdue(daysOverdue: number): string {
   return `${daysOverdue} days overdue`;
 }
 
+export function paymentStatusLabel(status: string): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+export function paymentDirectionLabel(direction: string): string {
+  return direction === "incoming" ? "From Client" : "To Vendor";
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB"];

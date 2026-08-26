@@ -71,6 +71,16 @@ enum EmailStatus {
   failed
 }
 
+enum PaymentDirection {
+  incoming
+  outgoing
+}
+
+enum PaymentStatus {
+  pending
+  paid
+}
+
 enum Role {
   owner
   assistant
@@ -144,6 +154,7 @@ model Wedding {
   calendarEvents  CalendarEvent[]
   emailLogs       EmailLog[]
   documents       Document[]
+  payments        Payment[]
 
   @@map("weddings")
 }
@@ -158,6 +169,7 @@ model Vendor {
   createdAt    DateTime       @default(now())
 
   weddings     WeddingVendor[]
+  payments     Payment[]
 
   @@map("vendors")
 }
@@ -280,6 +292,33 @@ model EmailLog {
   status        EmailStatus
   relatedTaskId String?
   relatedTask   Task?       @relation(fields: [relatedTaskId], references: [id], onDelete: SetNull)
+  relatedPaymentId String?
+  relatedPayment   Payment? @relation(fields: [relatedPaymentId], references: [id], onDelete: SetNull)
 
   @@map("email_logs")
+}
+
+// A single expected money movement for a wedding — either owed to us by the
+// couple ("incoming") or owed by us to a vendor ("outgoing", optionally
+// linked to which vendor). Wedding.budgetSpent/totalCollected are derived
+// from these at read time rather than tracked as separate manual fields.
+model Payment {
+  id          String           @id @default(uuid())
+  weddingId   String
+  wedding     Wedding          @relation(fields: [weddingId], references: [id])
+  vendorId    String?
+  vendor      Vendor?          @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  direction   PaymentDirection
+  description String
+  amount      Decimal          @db.Decimal(12, 2)
+  dueDate     DateTime
+  paidDate    DateTime?
+  status      PaymentStatus    @default(pending)
+  method      String?
+  notes       String?
+  createdAt   DateTime         @default(now())
+
+  emailLogs   EmailLog[]
+
+  @@map("payments")
 }

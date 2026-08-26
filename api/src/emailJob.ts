@@ -1,16 +1,19 @@
 import { prisma } from "./db";
 import { sendTemplatedEmail } from "./email";
 import { startOfTodayUTC } from "./utils";
-import { formatDateForEmail } from "./templateVars";
+import { formatDateForEmail, formatMoneyForEmail } from "./templateVars";
 
 const REMINDER_TEMPLATE_KEY = "milestone_reminder";
 const OVERDUE_TEMPLATE_KEY = "task_overdue";
+const PAYMENT_REMINDER_TEMPLATE_KEY = "payment_reminder";
 const DUE_SOON_WINDOW_DAYS = 3;
 const OVERDUE_RENUDGE_WINDOW_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface EmailJobResult {
   remindersSent: number;
   overdueNudgesSent: number;
+  paymentRemindersSent: number;
   failed: number;
 }
 
@@ -30,6 +33,7 @@ export async function runEmailJob(): Promise<EmailJobResult> {
 
   let remindersSent = 0;
   let overdueNudgesSent = 0;
+  let paymentRemindersSent = 0;
   let failed = 0;
 
   // --- Due-soon reminders ---
@@ -121,5 +125,62 @@ export async function runEmailJob(): Promise<EmailJobResult> {
     }
   }
 
-  return { remindersSent, overdueNudgesSent, failed };
+  // --- Payment reminders (due-soon and overdue share one template/key —
+  // a single reminder cadence of at most once every 7 days per payment,
+  // starting as soon as it enters the 3-day due-soon window). Incoming
+  // (owed by the couple) go to the client; outgoing (owed to a vendor) go
+  // to the vendor, if they have a contact email on file. ---
+  const reminderCandidates = await prisma.payment.findMany({
+    where: { status: "pending", dueDate: { lte: dueSoonCutoff } },
+    include: { wedding: { include: { client: true } }, vendor: true },
+  });
+
+  for (const payment of reminderCandidates) {
+    const recentReminder = await prisma.emailLog.findFirst({
+      where: {
+        relatedPaymentId: payment.id,
+        templateKey: PAYMENT_REMINDER_TEMPLATE_KEY,
+        sentAt: { gte: renudgeCutoff },
+      },
+    });
+    if (recentReminder) continue;
+
+    const recipientEmail =
+      payment.direction === "incoming" ? payment.wedding.client.email : payment.vendor?.contactEmail;
+    if (!recipientEmail) continue;
+
+    const recipientName =
+      payment.direction === "incoming" ? payment.wedding.client.fullName : payment.vendor?.name ?? "there";
+
+    const isOverdue = payment.dueDate < today;
+    const daysOverdue = isOverdue
+      ? Math.floor((today.getTime() - payment.dueDate.getTime()) / DAY_MS)
+      : 0;
+
+    try {
+      const log = await sendTemplatedEmail({
+        weddingId: payment.weddingId,
+        templateKey: PAYMENT_REMINDER_TEMPLATE_KEY,
+        recipientEmail,
+        relatedPaymentId: payment.id,
+        vars: {
+          recipientName,
+          description: payment.description,
+          amount: formatMoneyForEmail(payment.amount),
+          dueDate: formatDateForEmail(payment.dueDate),
+          weddingDate: formatDateForEmail(payment.wedding.weddingDate),
+          statusNote: isOverdue
+            ? ` This payment is now ${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue.`
+            : "",
+        },
+      });
+      if (log.status === "sent") paymentRemindersSent++;
+      else failed++;
+    } catch (err) {
+      failed++;
+      console.error(`Failed to send payment reminder for payment ${payment.id}:`, err);
+    }
+  }
+
+  return { remindersSent, overdueNudgesSent, paymentRemindersSent, failed };
 }

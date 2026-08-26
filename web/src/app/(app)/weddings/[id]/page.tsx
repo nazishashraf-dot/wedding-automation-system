@@ -6,20 +6,26 @@ import {
   CalendarEventType,
   Document,
   Meeting,
+  Payment,
+  PaymentDirection,
   Task,
   Vendor,
   Wedding,
   createWeddingMeeting,
+  createWeddingPayment,
   createWeddingTask,
   deleteDocument,
   deleteMeeting,
+  deletePayment,
   getWedding,
   linkVendorToWedding,
   listVendors,
   listWeddingDocuments,
   listWeddingMeetings,
+  listWeddingPayments,
   listWeddingTasks,
   regenerateTimeline,
+  updatePayment,
   updateTask,
   updateWedding,
   updateWeddingVendorLink,
@@ -32,6 +38,8 @@ import {
   formatFileSize,
   formatMoney,
   meetingTypeLabel,
+  paymentDirectionLabel,
+  paymentStatusLabel,
   planningStatusLabel,
   taskPriorityLabel,
   taskStatusLabel,
@@ -44,6 +52,7 @@ import PhotoBackdrop from "@/components/PhotoBackdrop";
 import DeleteButton from "@/components/DeleteButton";
 import { useAuth } from "@/components/AuthProvider";
 import {
+  btnGhostSageSm,
   btnPrimary,
   btnPrimarySm,
   btnSecondarySm,
@@ -51,6 +60,7 @@ import {
   documentTypeTone,
   inputClass,
   linkRose,
+  paymentStatusTone,
   planningStatusTone,
   selectSmClass,
   selectToneClasses,
@@ -77,7 +87,6 @@ export default function WeddingDetailPage({
   const [error, setError] = useState<string | null>(null);
 
   const [budgetTotal, setBudgetTotal] = useState("");
-  const [budgetSpent, setBudgetSpent] = useState("");
   const [savingBudget, setSavingBudget] = useState(false);
   const [budgetSaved, setBudgetSaved] = useState(false);
 
@@ -117,12 +126,21 @@ export default function WeddingDetailPage({
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [payments, setPayments] = useState<Payment[] | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentDirection, setPaymentDirection] = useState<PaymentDirection>("incoming");
+  const [paymentDescription, setPaymentDescription] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDueDate, setPaymentDueDate] = useState("");
+  const [paymentVendorId, setPaymentVendorId] = useState("");
+  const [addingPayment, setAddingPayment] = useState(false);
+
   async function refresh() {
     try {
       const data = await getWedding(id);
       setWedding(data);
       setBudgetTotal(data.budgetTotal ?? "");
-      setBudgetSpent(data.budgetSpent ?? "0");
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load wedding");
@@ -159,16 +177,73 @@ export default function WeddingDetailPage({
     }
   }
 
+  async function refreshPayments() {
+    try {
+      const data = await listWeddingPayments(id);
+      setPayments(data);
+      setPaymentError(null);
+    } catch (err) {
+      setPaymentError(err instanceof ApiError ? err.message : "Failed to load payments");
+    }
+  }
+
   useEffect(() => {
     refresh();
     refreshTasks();
     refreshMeetings();
     refreshDocuments();
+    refreshPayments();
     listVendors()
       .then(setAllVendors)
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function handleAddPayment(e: React.FormEvent) {
+    e.preventDefault();
+    setAddingPayment(true);
+    setPaymentError(null);
+    try {
+      await createWeddingPayment(id, {
+        direction: paymentDirection,
+        description: paymentDescription,
+        amount: Number(paymentAmount),
+        dueDate: paymentDueDate,
+        vendorId: paymentDirection === "outgoing" && paymentVendorId ? paymentVendorId : undefined,
+      });
+      setPaymentDescription("");
+      setPaymentAmount("");
+      setPaymentDueDate("");
+      setPaymentVendorId("");
+      setShowPaymentForm(false);
+      await refreshPayments();
+      await refresh(); // budget totals depend on paid payments, but a new one may already affect display context
+    } catch (err) {
+      setPaymentError(err instanceof ApiError ? err.message : "Failed to add payment");
+    } finally {
+      setAddingPayment(false);
+    }
+  }
+
+  async function handleMarkPaymentPaid(paymentId: string) {
+    try {
+      await updatePayment(paymentId, { status: "paid" });
+      await refreshPayments();
+      await refresh();
+    } catch (err) {
+      setPaymentError(err instanceof ApiError ? err.message : "Failed to update payment");
+    }
+  }
+
+  async function handleDeletePayment(paymentId: string) {
+    try {
+      await deletePayment(paymentId);
+      await refreshPayments();
+      await refresh();
+    } catch (err) {
+      setPaymentError(err instanceof ApiError ? err.message : "Failed to delete payment");
+    }
+  }
 
   async function handleUploadFile(file: File) {
     setUploading(true);
@@ -214,7 +289,6 @@ export default function WeddingDetailPage({
     try {
       await updateWedding(id, {
         budgetTotal: budgetTotal === "" ? undefined : Number(budgetTotal),
-        budgetSpent: budgetSpent === "" ? undefined : Number(budgetSpent),
       });
       await refresh();
       setBudgetSaved(true);
@@ -355,6 +429,7 @@ export default function WeddingDetailPage({
 
   const linkedVendorIds = new Set(wedding.vendors?.map((v) => v.vendorId));
   const linkableVendors = allVendors.filter((v) => !linkedVendorIds.has(v.id));
+  const outstandingBalance = (Number(wedding.budgetTotal) || 0) - (Number(wedding.totalSpent) || 0);
 
   return (
     <div className="-mx-4 -mt-10 space-y-6 sm:-mx-6">
@@ -403,7 +478,7 @@ export default function WeddingDetailPage({
 
       <section className={cardClass}>
         <SectionHeading>Budget</SectionHeading>
-        <form onSubmit={handleBudgetSave} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <form onSubmit={handleBudgetSave} className="flex flex-wrap items-end gap-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-plum-600">Budget total</label>
             <input
@@ -415,28 +490,233 @@ export default function WeddingDetailPage({
               onChange={(e) => setBudgetTotal(e.target.value)}
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-plum-600">Budget spent</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              className={inputClass}
-              value={budgetSpent}
-              onChange={(e) => setBudgetSpent(e.target.value)}
-            />
-          </div>
-          <div className="flex items-end gap-3">
+          <div className="flex items-center gap-3">
             <button type="submit" disabled={savingBudget} className={btnPrimary}>
               {savingBudget ? "Saving..." : "Save Budget"}
             </button>
             {budgetSaved && <span className="text-xs font-medium text-sage-700">Saved</span>}
           </div>
         </form>
-        <p className="mt-4 text-xs text-plum-400">
-          Currently: <span className="font-medium text-plum-600">{formatMoney(wedding.budgetSpent)}</span>{" "}
-          spent of <span className="font-medium text-plum-600">{formatMoney(wedding.budgetTotal)}</span>
-        </p>
+
+        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-plum-400">Budget Total</p>
+            <p className="mt-1 font-heading text-xl font-semibold text-plum">
+              {formatMoney(wedding.budgetTotal)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-plum-400">Total Spent</p>
+            <p className="mt-1 font-heading text-xl font-semibold text-plum">
+              {formatMoney(wedding.totalSpent)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-plum-400">Total Collected</p>
+            <p className="mt-1 font-heading text-xl font-semibold text-sage-700">
+              {formatMoney(wedding.totalCollected)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-plum-400">Outstanding Balance</p>
+            <p
+              className={`mt-1 font-heading text-xl font-semibold ${
+                outstandingBalance > 0 ? "text-rose-700" : "text-plum"
+              }`}
+            >
+              {formatMoney(outstandingBalance)}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className={cardClass}>
+        <SectionHeading
+          action={
+            <button onClick={() => setShowPaymentForm((s) => !s)} className={btnPrimarySm}>
+              {showPaymentForm ? "Cancel" : "+ Add Payment"}
+            </button>
+          }
+        >
+          Payments
+        </SectionHeading>
+
+        {showPaymentForm && (
+          <form
+            onSubmit={handleAddPayment}
+            className="mb-4 grid grid-cols-1 gap-3 rounded-lg border border-gold-100 bg-ivory-100/60 p-4 sm:grid-cols-4"
+          >
+            <div>
+              <label className="mb-1 block text-xs font-medium text-plum-600">Direction</label>
+              <select
+                className={inputClass}
+                value={paymentDirection}
+                onChange={(e) => setPaymentDirection(e.target.value as PaymentDirection)}
+              >
+                <option value="incoming">From Client</option>
+                <option value="outgoing">To Vendor</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-plum-600">Description</label>
+              <input
+                required
+                className={inputClass}
+                placeholder="e.g. Venue deposit"
+                value={paymentDescription}
+                onChange={(e) => setPaymentDescription(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-plum-600">Amount</label>
+              <input
+                required
+                type="number"
+                min="0.01"
+                step="0.01"
+                className={inputClass}
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-plum-600">Due date</label>
+              <input
+                required
+                type="date"
+                className={inputClass}
+                value={paymentDueDate}
+                onChange={(e) => setPaymentDueDate(e.target.value)}
+              />
+            </div>
+            {paymentDirection === "outgoing" && (
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-plum-600">
+                  Vendor (optional)
+                </label>
+                <select
+                  className={inputClass}
+                  value={paymentVendorId}
+                  onChange={(e) => setPaymentVendorId(e.target.value)}
+                >
+                  <option value="">No vendor</option>
+                  {allVendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {paymentError && <p className="text-sm text-rose-700 sm:col-span-4">{paymentError}</p>}
+            <div className="flex items-end sm:col-span-4">
+              <button type="submit" disabled={addingPayment} className={btnPrimary}>
+                {addingPayment ? "Saving..." : "Save Payment"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {!showPaymentForm && paymentError && (
+          <p className="mb-2 text-sm text-rose-700">{paymentError}</p>
+        )}
+
+        {payments && payments.length === 0 && (
+          <p className="rounded-lg border border-gold-100 px-3 py-6 text-center text-sm text-plum-400">
+            No payments yet.
+          </p>
+        )}
+
+        {payments && payments.length > 0 && (
+          <>
+            {/* Mobile: stacked cards. */}
+            <div className="space-y-3 sm:hidden">
+              {payments.map((p) => (
+                <div key={p.id} className="rounded-lg border border-gold-100 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-plum">{p.description}</p>
+                      <p className="text-xs text-plum-400">
+                        {paymentDirectionLabel(p.direction)}
+                        {p.vendor ? ` · ${p.vendor.name}` : ""}
+                      </p>
+                    </div>
+                    <Badge tone={paymentStatusTone(p.status, p.overdue)}>
+                      {p.overdue ? "Overdue" : paymentStatusLabel(p.status)}
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-sm font-medium text-plum-600">
+                      {formatMoney(p.amount)}
+                    </span>
+                    <span className="text-xs text-plum-400">Due {formatDate(p.dueDate)}</span>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-4">
+                    {p.status !== "paid" && (
+                      <button
+                        onClick={() => handleMarkPaymentPaid(p.id)}
+                        className={btnGhostSageSm}
+                      >
+                        Mark as Paid
+                      </button>
+                    )}
+                    {isOwner && <DeleteButton onDelete={() => handleDeletePayment(p.id)} />}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tablet and up: full table. */}
+            <div className="hidden overflow-x-auto rounded-lg border border-gold-100 sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Direction</th>
+                    <th className="px-3 py-2 font-medium">Description</th>
+                    <th className="px-3 py-2 font-medium">Vendor</th>
+                    <th className="px-3 py-2 font-medium">Amount</th>
+                    <th className="px-3 py-2 font-medium">Due date</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gold-100">
+                  {payments.map((p) => (
+                    <tr key={p.id}>
+                      <td className="px-3 py-2">
+                        <Badge tone={p.direction === "incoming" ? "sage" : "gold"}>
+                          {paymentDirectionLabel(p.direction)}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 font-medium text-plum">{p.description}</td>
+                      <td className="px-3 py-2 text-plum-600">{p.vendor?.name ?? "—"}</td>
+                      <td className="px-3 py-2 text-plum-600">{formatMoney(p.amount)}</td>
+                      <td className="px-3 py-2 text-plum-600">{formatDate(p.dueDate)}</td>
+                      <td className="px-3 py-2">
+                        <Badge tone={paymentStatusTone(p.status, p.overdue)}>
+                          {p.overdue ? "Overdue" : paymentStatusLabel(p.status)}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex items-center justify-end gap-4">
+                          {p.status !== "paid" && (
+                            <button
+                              onClick={() => handleMarkPaymentPaid(p.id)}
+                              className={btnGhostSageSm}
+                            >
+                              Mark as Paid
+                            </button>
+                          )}
+                          {isOwner && <DeleteButton onDelete={() => handleDeletePayment(p.id)} />}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
 
       <section className={cardClass}>
