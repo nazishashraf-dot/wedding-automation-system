@@ -76,9 +76,12 @@ export interface Wedding {
   styleNotes: string | null;
   guestCountEstimate: number | null;
   intakeNotes: string | null;
+  // Set the moment the public intake form is submitted — null means the
+  // couple hasn't submitted it (yet).
+  intakeSubmittedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  client?: ClientSummary;
+  client?: ClientSummary & { phone?: string | null };
   vendors?: WeddingVendorLink[];
   // Derived from paid Payments at read time — see GET /weddings/:id.
   totalSpent: string | number;

@@ -148,6 +148,7 @@ model Wedding {
   // Captured via the public client intake form (/forms/intake/[weddingId])
   guestCountEstimate Int?
   intakeNotes        String?
+  intakeSubmittedAt  DateTime?
 
   vendors         WeddingVendor[]
   tasks           Task[]

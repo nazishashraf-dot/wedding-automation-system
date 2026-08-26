@@ -62,7 +62,10 @@ router.post(
           ...(phone !== undefined ? { phone } : {}),
         },
       }),
-      prisma.wedding.update({ where: { id: weddingId }, data: weddingFields }),
+      prisma.wedding.update({
+        where: { id: weddingId },
+        data: { ...weddingFields, intakeSubmittedAt: new Date() },
+      }),
     ]);
 
     res.json({ success: true });
