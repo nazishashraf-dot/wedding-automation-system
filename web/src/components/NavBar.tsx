@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import Badge from "@/components/Badge";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -17,27 +18,47 @@ export default function NavBar() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
+  const firstName = user?.name.split(" ")[0] ?? "";
 
   async function handleLogout() {
     setOpen(false);
+    setUserMenuOpen(false);
     await logout();
     router.replace("/login");
   }
 
-  // Close the mobile menu whenever the route changes.
+  // Close the mobile menu and user dropdown whenever the route changes.
   useEffect(() => {
     setOpen(false);
+    setUserMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !userMenuOpen) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        setUserMenuOpen(false);
+      }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, userMenuOpen]);
+
+  // Close the user dropdown when clicking anywhere outside it.
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    function onClickOutside(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [userMenuOpen]);
 
   function isActive(href: string) {
     return href === "/" ? pathname === "/" : pathname?.startsWith(href);
@@ -66,13 +87,41 @@ export default function NavBar() {
             </Link>
           ))}
           {user && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="ml-2 rounded-full border border-ivory/25 px-3.5 py-1.5 text-sm font-medium text-ivory/85 transition-colors hover:bg-ivory/15 hover:text-ivory"
-            >
-              Log out
-            </button>
+            <div className="relative ml-2" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen((o) => !o)}
+                aria-expanded={userMenuOpen}
+                className="flex items-center gap-2 rounded-full border border-ivory/25 px-3.5 py-1.5 text-sm font-medium text-ivory/85 transition-colors hover:bg-ivory/15 hover:text-ivory"
+              >
+                <span>{firstName}</span>
+                {user.role === "assistant" && <Badge tone="gold">Assistant</Badge>}
+                <svg
+                  viewBox="0 0 24 24"
+                  className={`h-3.5 w-3.5 transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full z-20 mt-2 w-40 overflow-hidden rounded-lg border border-gold-100 bg-ivory py-1 shadow-soft-lg">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="block w-full px-4 py-2 text-left text-sm font-medium text-wine-600 transition-colors hover:bg-wine-50"
+                  >
+                    Log out
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -137,13 +186,19 @@ export default function NavBar() {
                 </Link>
               ))}
               {user && (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="mt-1 flex min-h-[44px] items-center rounded-lg border-t border-gold-100 px-4 pt-3 text-left text-base font-medium text-wine-600 transition-colors hover:bg-wine-50"
-                >
-                  Log out
-                </button>
+                <div className="mt-1 border-t border-gold-100 pt-3">
+                  <div className="flex items-center gap-2 px-4 py-1">
+                    <span className="text-sm font-medium text-plum">{user.name}</span>
+                    {user.role === "assistant" && <Badge tone="gold">Assistant</Badge>}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex min-h-[44px] w-full items-center rounded-lg px-4 text-left text-base font-medium text-wine-600 transition-colors hover:bg-wine-50"
+                  >
+                    Log out
+                  </button>
+                </div>
               )}
             </div>
           </div>
