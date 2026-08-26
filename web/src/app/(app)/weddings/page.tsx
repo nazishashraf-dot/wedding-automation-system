@@ -7,12 +7,15 @@ import {
   Client,
   Wedding,
   createWedding,
+  deleteWedding,
   listClients,
   listWeddings,
 } from "@/lib/api";
 import { formatDate, planningStatusLabel } from "@/lib/format";
 import Badge from "@/components/Badge";
 import CoupleName from "@/components/CoupleName";
+import DeleteButton from "@/components/DeleteButton";
+import { useAuth } from "@/components/AuthProvider";
 import {
   btnPrimary,
   btnSecondary,
@@ -23,6 +26,8 @@ import {
 } from "@/lib/ui";
 
 export default function WeddingsPage() {
+  const { user } = useAuth();
+  const isOwner = user?.role === "owner";
   const [weddings, setWeddings] = useState<Wedding[] | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +75,15 @@ export default function WeddingsPage() {
       setFormError(err instanceof ApiError ? err.message : "Failed to create wedding");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteWedding(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete wedding");
     }
   }
 
@@ -135,36 +149,45 @@ export default function WeddingsPage() {
       {weddings && weddings.length > 0 && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {weddings.map((wedding) => (
-            <Link
+            <div
               key={wedding.id}
-              href={`/weddings/${wedding.id}`}
-              className="overflow-hidden rounded-card border border-gold-100 bg-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
+              className="group relative overflow-hidden rounded-card border border-gold-100 bg-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
             >
-              <div
-                className="h-40 bg-cover bg-center bg-gold-100"
-                style={{ backgroundImage: `url(${weddingPhotoFor(wedding.id)})` }}
-              />
-              <div className="p-5">
-                <p className="font-heading text-xl font-semibold text-plum">
-                  {wedding.client ? (
-                    <CoupleName
-                      fullName={wedding.client.fullName}
-                      partnerName={wedding.client.partnerName}
-                    />
-                  ) : (
-                    "—"
-                  )}
-                </p>
-                <p className="mt-1 text-sm text-plum-400">
-                  {formatDate(wedding.weddingDate)} · {wedding.venue ?? "Venue to be confirmed"}
-                </p>
-                <div className="mt-3">
-                  <Badge tone={planningStatusTone(wedding.planningStatus)}>
-                    {planningStatusLabel(wedding.planningStatus)}
-                  </Badge>
+              <Link href={`/weddings/${wedding.id}`} className="block">
+                <div
+                  className="h-40 bg-cover bg-center bg-gold-100"
+                  style={{ backgroundImage: `url(${weddingPhotoFor(wedding.id)})` }}
+                />
+                <div className="p-5">
+                  <p className="font-heading text-xl font-semibold text-plum">
+                    {wedding.client ? (
+                      <CoupleName
+                        fullName={wedding.client.fullName}
+                        partnerName={wedding.client.partnerName}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </p>
+                  <p className="mt-1 text-sm text-plum-400">
+                    {formatDate(wedding.weddingDate)} · {wedding.venue ?? "Venue to be confirmed"}
+                  </p>
+                  <div className="mt-3">
+                    <Badge tone={planningStatusTone(wedding.planningStatus)}>
+                      {planningStatusLabel(wedding.planningStatus)}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
+              {isOwner && (
+                <div className="absolute right-3 top-3">
+                  <DeleteButton
+                    onDelete={() => handleDelete(wedding.id)}
+                    className="rounded-full bg-ivory/95 px-3 py-1 text-xs font-medium text-rose-700 shadow-soft transition-colors hover:bg-ivory"
+                  />
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

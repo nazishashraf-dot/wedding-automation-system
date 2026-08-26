@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, Client, createClient, listClients } from "@/lib/api";
+import { ApiError, Client, createClient, deleteClient, listClients } from "@/lib/api";
 import { clientStatusLabel, formatDate } from "@/lib/format";
 import Badge from "@/components/Badge";
+import DeleteButton from "@/components/DeleteButton";
+import { useAuth } from "@/components/AuthProvider";
 import { btnPrimary, btnSecondary, cardClass, clientStatusTone, inputClass } from "@/lib/ui";
 
 export default function ClientsPage() {
+  const { user } = useAuth();
+  const isOwner = user?.role === "owner";
   const [clients, setClients] = useState<Client[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -53,6 +57,15 @@ export default function ClientsPage() {
       setFormError(err instanceof ApiError ? err.message : "Failed to create client");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteClient(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete client");
     }
   }
 
@@ -142,6 +155,11 @@ export default function ClientsPage() {
                     <dd className="truncate text-plum-600">{client.email}</dd>
                   </div>
                 </dl>
+                {isOwner && (
+                  <div className="mt-3 text-right">
+                    <DeleteButton onDelete={() => handleDelete(client.id)} />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -156,6 +174,7 @@ export default function ClientsPage() {
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium">Wedding date</th>
                     <th className="px-4 py-3 font-medium">Email</th>
+                    {isOwner && <th className="px-4 py-3"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gold-100">
@@ -176,6 +195,11 @@ export default function ClientsPage() {
                           : "—"}
                       </td>
                       <td className="px-4 py-3 text-plum-400">{client.email}</td>
+                      {isOwner && (
+                        <td className="px-4 py-3 text-right">
+                          <DeleteButton onDelete={() => handleDelete(client.id)} />
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

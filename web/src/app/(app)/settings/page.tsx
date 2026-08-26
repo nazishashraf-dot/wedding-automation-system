@@ -1,11 +1,13 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ApiError, GoogleConnectionStatus, getGoogleConnectionStatus, googleConnectUrl } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import SectionHeading from "@/components/SectionHeading";
-import { btnPrimary, cardClass } from "@/lib/ui";
+import { useAuth } from "@/components/AuthProvider";
+import { btnPrimary, btnSecondarySm, cardClass } from "@/lib/ui";
 
 function ConnectionBanner() {
   const searchParams = useSearchParams();
@@ -29,6 +31,7 @@ function ConnectionBanner() {
 }
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [status, setStatus] = useState<GoogleConnectionStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +95,18 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+
+      {user?.role === "owner" && (
+        <section className={cardClass}>
+          <SectionHeading>Team</SectionHeading>
+          <p className="mb-3 text-xs text-plum-400">
+            Invite assistants and see who has access to this workspace.
+          </p>
+          <Link href="/settings/team" className={btnSecondarySm}>
+            Manage Team
+          </Link>
+        </section>
+      )}
     </div>
   );
 }

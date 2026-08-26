@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
 
 const LINKS = [
   { href: "/", label: "Dashboard" },
@@ -14,7 +15,15 @@ const LINKS = [
 
 export default function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const { user, logout } = useAuth();
+
+  async function handleLogout() {
+    setOpen(false);
+    await logout();
+    router.replace("/login");
+  }
 
   // Close the mobile menu whenever the route changes.
   useEffect(() => {
@@ -56,6 +65,15 @@ export default function NavBar() {
               {link.label}
             </Link>
           ))}
+          {user && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="ml-2 rounded-full border border-ivory/25 px-3.5 py-1.5 text-sm font-medium text-ivory/85 transition-colors hover:bg-ivory/15 hover:text-ivory"
+            >
+              Log out
+            </button>
+          )}
         </div>
 
         {/* Mobile — hamburger / close toggle. */}
@@ -118,6 +136,15 @@ export default function NavBar() {
                   {link.label}
                 </Link>
               ))}
+              {user && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="mt-1 flex min-h-[44px] items-center rounded-lg border-t border-gold-100 px-4 pt-3 text-left text-base font-medium text-wine-600 transition-colors hover:bg-wine-50"
+                >
+                  Log out
+                </button>
+              )}
             </div>
           </div>
         </>

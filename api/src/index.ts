@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import cron from "node-cron";
 import clientsRouter from "./routes/clients";
@@ -12,6 +13,7 @@ import formsRouter from "./routes/forms";
 import dashboardRouter from "./routes/dashboard";
 import adminRouter from "./routes/admin";
 import { errorHandler } from "./errors";
+import { requireAuth } from "./middleware/auth";
 import { runEmailJob } from "./emailJob";
 import { getFrontendUrl } from "./utils";
 
@@ -21,22 +23,27 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const FRONTEND_URL = getFrontendUrl();
 
-app.use(cors({ origin: FRONTEND_URL }));
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.use("/clients", clientsRouter);
-app.use("/weddings", weddingsRouter);
-app.use("/vendors", vendorsRouter);
-app.use("/tasks", tasksRouter);
+// /auth carries both public routes (login/logout) and protected ones
+// (register, me, google/*) — each route inside auth.ts guards itself.
 app.use("/auth", authRouter);
-app.use("/meetings", meetingsRouter);
+// /forms/intake/:weddingId is the public client-facing intake form — stays open.
 app.use("/forms", formsRouter);
-app.use("/dashboard", dashboardRouter);
-app.use("/admin", adminRouter);
+
+app.use("/clients", requireAuth, clientsRouter);
+app.use("/weddings", requireAuth, weddingsRouter);
+app.use("/vendors", requireAuth, vendorsRouter);
+app.use("/tasks", requireAuth, tasksRouter);
+app.use("/meetings", requireAuth, meetingsRouter);
+app.use("/dashboard", requireAuth, dashboardRouter);
+app.use("/admin", requireAuth, adminRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: { message: "Not found" } });

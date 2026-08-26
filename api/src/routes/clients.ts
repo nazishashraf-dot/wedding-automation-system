@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { asyncHandler, notFound, validateBody } from "../errors";
+import { requireOwner } from "../middleware/auth";
 import { param } from "../utils";
 
 const router = Router();
@@ -69,6 +70,7 @@ router.patch(
 
 router.delete(
   "/:id",
+  requireOwner,
   asyncHandler(async (req, res) => {
     await prisma.client.delete({ where: { id: param(req, "id") } });
     res.status(204).send();

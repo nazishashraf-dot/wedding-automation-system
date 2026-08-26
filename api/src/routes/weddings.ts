@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { AppError, asyncHandler, notFound, validateBody } from "../errors";
+import { requireOwner } from "../middleware/auth";
 import { getFrontendUrl, param, withOverdueFlag } from "../utils";
 import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../timeline";
 import { pushCalendarEventCreate } from "../googleCalendar";
@@ -150,6 +151,29 @@ router.patch(
     }
 
     res.json(wedding);
+  })
+);
+
+router.delete(
+  "/:id",
+  requireOwner,
+  asyncHandler(async (req, res) => {
+    const id = param(req, "id");
+    const existing = await prisma.wedding.findUnique({ where: { id } });
+    if (!existing) throw notFound("Wedding");
+
+    // Wedding's child records (tasks, calendar events, email logs, vendor
+    // links) are RESTRICT by default, so they're cleared first — this
+    // deletes the wedding and everything planned under it, but leaves the
+    // client record itself untouched.
+    await prisma.$transaction([
+      prisma.emailLog.deleteMany({ where: { weddingId: id } }),
+      prisma.calendarEvent.deleteMany({ where: { weddingId: id } }),
+      prisma.task.deleteMany({ where: { weddingId: id } }),
+      prisma.weddingVendor.deleteMany({ where: { weddingId: id } }),
+      prisma.wedding.delete({ where: { id } }),
+    ]);
+    res.status(204).send();
   })
 );
 

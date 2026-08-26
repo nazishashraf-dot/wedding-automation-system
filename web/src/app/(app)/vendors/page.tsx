@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ApiError, Vendor, VendorCategory, createVendor, listVendors } from "@/lib/api";
+import { ApiError, Vendor, VendorCategory, createVendor, deleteVendor, listVendors } from "@/lib/api";
 import { vendorCategoryLabel } from "@/lib/format";
+import DeleteButton from "@/components/DeleteButton";
+import { useAuth } from "@/components/AuthProvider";
 import { btnPrimary, btnSecondary, cardClass, inputClass, vendorCategoryPhoto } from "@/lib/ui";
 
 const CATEGORIES: VendorCategory[] = [
@@ -16,6 +18,8 @@ const CATEGORIES: VendorCategory[] = [
 ];
 
 export default function VendorsPage() {
+  const { user } = useAuth();
+  const isOwner = user?.role === "owner";
   const [vendors, setVendors] = useState<Vendor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<VendorCategory | "">("");
@@ -64,6 +68,15 @@ export default function VendorsPage() {
       setFormError(err instanceof ApiError ? err.message : "Failed to create vendor");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteVendor(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to delete vendor");
     }
   }
 
@@ -150,12 +163,20 @@ export default function VendorsPage() {
           {vendors.map((vendor) => (
             <div
               key={vendor.id}
-              className="overflow-hidden rounded-card border border-gold-100 bg-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
+              className="relative overflow-hidden rounded-card border border-gold-100 bg-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
             >
               <div
                 className="h-32 bg-cover bg-center bg-gold-100"
                 style={{ backgroundImage: `url(${vendorCategoryPhoto[vendor.category]})` }}
               />
+              {isOwner && (
+                <div className="absolute right-3 top-3">
+                  <DeleteButton
+                    onDelete={() => handleDelete(vendor.id)}
+                    className="rounded-full bg-ivory/95 px-3 py-1 text-xs font-medium text-rose-700 shadow-soft transition-colors hover:bg-ivory"
+                  />
+                </div>
+              )}
               <div className="p-5">
                 <p className="text-xs font-medium uppercase tracking-[0.15em] text-gold-700">
                   {vendorCategoryLabel(vendor.category)}

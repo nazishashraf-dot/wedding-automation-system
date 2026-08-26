@@ -186,6 +186,23 @@ export interface EmailLogEntry {
   relatedTaskId: string | null;
 }
 
+export type Role = "owner" | "assistant";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+}
+
 export class ApiError extends Error {
   status: number;
   details?: unknown;
@@ -204,6 +221,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       "Content-Type": "application/json",
       ...options?.headers,
     },
+    // The API lives on a different origin (Railway) from the frontend
+    // (Vercel) — the session cookie is httpOnly, so it must be explicitly
+    // opted into cross-origin requests here, or every authenticated call
+    // silently drops it.
+    credentials: "include",
     cache: "no-store",
   });
 
@@ -224,6 +246,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Auth
+export const login = (email: string, password: string) =>
+  request<AuthUser>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+export const logout = () => request<{ success: boolean }>("/auth/logout", { method: "POST" });
+export const getMe = () => request<AuthUser>("/auth/me");
+export const listTeamUsers = () => request<TeamMember[]>("/auth/users");
+export const inviteTeamMember = (data: { name: string; email: string; password: string }) =>
+  request<TeamMember>("/auth/register", { method: "POST", body: JSON.stringify(data) });
+
 // Clients
 export const listClients = () => request<Client[]>("/clients");
 export const getClient = (id: string) => request<Client>(`/clients/${id}`);
@@ -235,6 +266,7 @@ export const createClient = (data: {
   status?: ClientStatus;
   notes?: string;
 }) => request<Client>("/clients", { method: "POST", body: JSON.stringify(data) });
+export const deleteClient = (id: string) => request<void>(`/clients/${id}`, { method: "DELETE" });
 
 // Weddings
 export const listWeddings = () => request<Wedding[]>("/weddings");
@@ -276,6 +308,8 @@ export const updateWeddingVendorLink = (
     method: "PATCH",
     body: JSON.stringify(data),
   });
+
+export const deleteWedding = (id: string) => request<void>(`/weddings/${id}`, { method: "DELETE" });
 
 export const regenerateTimeline = (weddingId: string) =>
   request<RegenerateTimelineResult>(`/weddings/${weddingId}/regenerate-timeline`, {
@@ -364,3 +398,4 @@ export const createVendor = (data: {
   phone?: string;
   notes?: string;
 }) => request<Vendor>("/vendors", { method: "POST", body: JSON.stringify(data) });
+export const deleteVendor = (id: string) => request<void>(`/vendors/${id}`, { method: "DELETE" });

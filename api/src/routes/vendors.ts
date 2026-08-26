@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db";
 import { AppError, asyncHandler, notFound, validateBody } from "../errors";
+import { requireOwner } from "../middleware/auth";
 import { param } from "../utils";
 
 const router = Router();
@@ -75,6 +76,23 @@ router.patch(
       data: req.body,
     });
     res.json(vendor);
+  })
+);
+
+router.delete(
+  "/:id",
+  requireOwner,
+  asyncHandler(async (req, res) => {
+    const id = param(req, "id");
+    const existing = await prisma.vendor.findUnique({ where: { id } });
+    if (!existing) throw notFound("Vendor");
+
+    // Vendor's wedding links are RESTRICT by default, so clear them first.
+    await prisma.$transaction([
+      prisma.weddingVendor.deleteMany({ where: { vendorId: id } }),
+      prisma.vendor.delete({ where: { id } }),
+    ]);
+    res.status(204).send();
   })
 );
 

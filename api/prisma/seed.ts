@@ -1,5 +1,6 @@
 import { prisma } from "../src/db";
 import { generateTimelineForWedding } from "../src/timeline";
+import { hashPassword } from "../src/auth/passwords";
 
 type CalendarEventType = "milestone" | "client_meeting" | "vendor_meeting" | "reminder";
 
@@ -167,8 +168,39 @@ const TIMELINE_RULES: Array<{
   },
 ];
 
+// Owner login for day one. The password is never hardcoded here — it's
+// read from an env var (OWNER_SEED_PASSWORD) that you set yourself before
+// running `npm run seed`, so it never ends up in source control or logs.
+const OWNER_SEED_EMAIL = "nazishashraf3@gmail.com";
+
+async function seedOwnerUser() {
+  const password = process.env.OWNER_SEED_PASSWORD;
+  if (!password) {
+    console.warn(
+      "  Skipping owner user: OWNER_SEED_PASSWORD is not set. " +
+        "Set it in the environment and re-run `npm run seed` to create the initial login."
+    );
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  const owner = await prisma.user.upsert({
+    where: { email: OWNER_SEED_EMAIL },
+    update: { passwordHash, role: "owner" },
+    create: {
+      email: OWNER_SEED_EMAIL,
+      name: "Nazish Ashraf",
+      passwordHash,
+      role: "owner",
+    },
+  });
+  console.log(`  Owner user ready: ${owner.email}`);
+}
+
 async function main() {
   console.log("Seeding database...");
+
+  await seedOwnerUser();
 
   // Timeline rules — no unique DB constraint, so match on label.
   for (const rule of TIMELINE_RULES) {
