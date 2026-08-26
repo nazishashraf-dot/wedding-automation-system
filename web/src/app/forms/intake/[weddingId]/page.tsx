@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { ApiError, IntakeFormData, getIntakeForm, submitIntakeForm } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { btnPrimary, inputClass } from "@/lib/ui";
+import CoupleName from "@/components/CoupleName";
+import PhotoBackdrop from "@/components/PhotoBackdrop";
+import { btnPrimary, inputClass, intakeBackgroundPhotoUrl } from "@/lib/ui";
 
 const labelClass = "mb-1.5 block text-sm font-medium text-plum-600";
 
@@ -100,7 +102,8 @@ export default function IntakeFormPage({
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-wash-blush">
+    <div className="relative min-h-screen overflow-hidden">
+      <PhotoBackdrop src={intakeBackgroundPhotoUrl} blurred scrimClassName="bg-photo-scrim-soft" />
       <BotanicalBackground />
 
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-12 sm:px-6">
@@ -114,9 +117,8 @@ export default function IntakeFormPage({
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-gold-700">
                 A few details for your day
               </p>
-              <h1 className="mt-2 font-heading text-3xl font-semibold leading-tight text-wine-600">
-                {data.fullName}
-                {data.partnerName ? ` & ${data.partnerName}` : ""}
+              <h1 className="mt-2 font-heading text-3xl font-semibold leading-tight text-wine-600 sm:text-4xl">
+                <CoupleName fullName={data.fullName} partnerName={data.partnerName} />
               </h1>
               <p className="mt-1.5 text-sm text-plum-400">
                 {formatDate(data.weddingDate)}

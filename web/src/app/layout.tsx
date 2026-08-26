@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Cormorant_Garamond, Great_Vibes, Inter } from "next/font/google";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -12,6 +12,15 @@ const cormorant = Cormorant_Garamond({
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-body",
+  display: "swap",
+});
+
+// Decorative accent font — reserved for tiny flourishes only (an ampersand
+// between partner names, a small "est." label). Never for body text.
+const greatVibes = Great_Vibes({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-script",
   display: "swap",
 });
 
@@ -28,7 +37,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${cormorant.variable} ${inter.variable} font-sans antialiased bg-ivory text-plum`}
+        className={`${cormorant.variable} ${inter.variable} ${greatVibes.variable} font-sans antialiased bg-ivory text-plum`}
       >
         {children}
       </body>

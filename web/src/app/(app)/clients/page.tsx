@@ -59,7 +59,7 @@ export default function ClientsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-heading text-3xl font-semibold text-wine-600">Clients</h1>
+        <h1 className="font-heading text-4xl font-semibold text-wine-600 sm:text-5xl">Clients</h1>
         <button onClick={() => setShowForm((s) => !s)} className={showForm ? btnSecondary : btnPrimary}>
           {showForm ? "Cancel" : "New Client"}
         </button>

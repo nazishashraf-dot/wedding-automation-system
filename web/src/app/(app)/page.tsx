@@ -14,7 +14,9 @@ import {
 } from "@/lib/format";
 import SectionHeading from "@/components/SectionHeading";
 import Badge from "@/components/Badge";
-import { cardClass, planningStatusTone } from "@/lib/ui";
+import CoupleName from "@/components/CoupleName";
+import PhotoBackdrop from "@/components/PhotoBackdrop";
+import { cardClass, heroPhotoUrl, planningStatusTone, weddingPhotoFor } from "@/lib/ui";
 
 function coupleName(client: { fullName: string; partnerName: string | null }): string {
   return client.partnerName ? `${client.fullName} & ${client.partnerName}` : client.fullName;
@@ -38,20 +40,48 @@ export default function DashboardPage() {
     return <p className="text-sm text-plum-400">Loading...</p>;
   }
 
+  const nearest = data.upcomingWeddings[0];
+
   return (
-    <div className="-mx-4 -mt-10 bg-wash-blush px-4 pb-16 pt-10 sm:-mx-6 sm:px-6">
-      <div className="space-y-8">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-gold-700">
+    <div className="-mx-4 -mt-10 sm:-mx-6">
+      {/* Hero — the emotional anchor of the page: the single nearest
+          upcoming wedding, large and photo-backed, not a stat card. */}
+      <div className="relative flex h-[380px] flex-col justify-end overflow-hidden sm:h-[440px] md:h-[500px]">
+        <PhotoBackdrop src={heroPhotoUrl} blurred scrimClassName="bg-photo-scrim" />
+        <div className="relative z-10 px-4 pb-10 sm:px-10 sm:pb-14 md:px-14">
+          <p className="text-xs font-medium uppercase tracking-[0.35em] text-gold-200">
             Wedding Studio
           </p>
-          <h1 className="font-heading text-3xl font-semibold text-wine-600">Dashboard</h1>
-          <p className="mt-1 text-sm text-plum-400">
-            Everything that needs your attention today, in one place.
-          </p>
+          {nearest ? (
+            <>
+              <h1 className="mt-4 max-w-3xl font-heading text-4xl font-semibold leading-[1.05] text-ivory sm:text-5xl md:text-6xl">
+                {nearest.daysUntil} {nearest.daysUntil === 1 ? "day" : "days"} until{" "}
+                <CoupleName
+                  fullName={nearest.client.fullName}
+                  partnerName={nearest.client.partnerName}
+                  ampersandClassName="text-gold-200"
+                />
+                &apos;s wedding
+              </h1>
+              <p className="mt-4 text-sm text-ivory/80 sm:text-base">
+                {formatDate(nearest.weddingDate)} · {nearest.venue ?? "Venue to be confirmed"}
+              </p>
+            </>
+          ) : (
+            <h1 className="mt-4 max-w-3xl font-heading text-4xl font-semibold leading-[1.05] text-ivory sm:text-5xl md:text-6xl">
+              Nothing on the horizon yet
+            </h1>
+          )}
         </div>
+      </div>
 
-        {data.needsAttention.length > 0 && (
+      <div className="bg-wash-blush px-4 pb-16 pt-10 sm:px-6">
+        <div className="space-y-8">
+          <p className="text-sm text-plum-400">
+            Everything else that needs your attention today, in one place.
+          </p>
+
+          {data.needsAttention.length > 0 && (
           <section>
             <SectionHeading>Needs Attention</SectionHeading>
             <ul className="space-y-2.5">
@@ -183,25 +213,32 @@ export default function DashboardPage() {
                 <Link
                   key={w.id}
                   href={`/weddings/${w.id}`}
-                  className="rounded-card border border-gold-100 bg-white p-4 transition-shadow hover:shadow-soft"
+                  className="overflow-hidden rounded-card border border-gold-100 bg-white transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
                 >
-                  <p className="font-heading text-lg font-semibold text-plum">
-                    {coupleName(w.client)}
-                  </p>
-                  <p className="mt-0.5 text-sm text-plum-400">{formatDate(w.weddingDate)}</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <Badge tone={planningStatusTone(w.planningStatus)}>
-                      {planningStatusLabel(w.planningStatus)}
-                    </Badge>
-                    <span className="rounded-full bg-wine-500 px-2.5 py-1 text-xs font-medium text-ivory">
-                      {formatCountdown(w.daysUntil)}
-                    </span>
+                  <div
+                    className="h-28 bg-cover bg-center bg-gold-100"
+                    style={{ backgroundImage: `url(${weddingPhotoFor(w.id)})` }}
+                  />
+                  <div className="p-4">
+                    <p className="font-heading text-lg font-semibold text-plum">
+                      <CoupleName fullName={w.client.fullName} partnerName={w.client.partnerName} />
+                    </p>
+                    <p className="mt-0.5 text-sm text-plum-400">{formatDate(w.weddingDate)}</p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <Badge tone={planningStatusTone(w.planningStatus)}>
+                        {planningStatusLabel(w.planningStatus)}
+                      </Badge>
+                      <span className="rounded-full bg-wine-500 px-2.5 py-1 text-xs font-medium text-ivory">
+                        {formatCountdown(w.daysUntil)}
+                      </span>
+                    </div>
                   </div>
                 </Link>
               ))}
             </div>
           )}
         </section>
+        </div>
       </div>
     </div>
   );

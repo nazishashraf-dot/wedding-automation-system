@@ -7,7 +7,7 @@ export default function SectionHeading({
 }) {
   return (
     <div className="section-heading">
-      <h2 className="section-heading__title text-lg">{children}</h2>
+      <h2 className="section-heading__title text-2xl sm:text-3xl">{children}</h2>
       {action && <div className="flex items-center gap-3">{action}</div>}
     </div>
   );

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, Vendor, VendorCategory, createVendor, listVendors } from "@/lib/api";
 import { vendorCategoryLabel } from "@/lib/format";
-import { btnPrimary, btnSecondary, cardClass, inputClass } from "@/lib/ui";
+import { btnPrimary, btnSecondary, cardClass, inputClass, vendorCategoryPhoto } from "@/lib/ui";
 
 const CATEGORIES: VendorCategory[] = [
   "florist",
@@ -70,7 +70,7 @@ export default function VendorsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-heading text-3xl font-semibold text-wine-600">Vendors</h1>
+        <h1 className="font-heading text-4xl font-semibold text-wine-600 sm:text-5xl">Vendors</h1>
         <button onClick={() => setShowForm((s) => !s)} className={showForm ? btnSecondary : btnPrimary}>
           {showForm ? "Cancel" : "New Vendor"}
         </button>
@@ -141,37 +141,33 @@ export default function VendorsPage() {
 
       {error && <p className="text-sm text-rose-700">{error}</p>}
 
-      <div className={`overflow-hidden !p-0 ${cardClass}`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
-              <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Category</th>
-                <th className="px-4 py-3 font-medium">Contact email</th>
-                <th className="px-4 py-3 font-medium">Phone</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gold-100">
-              {vendors?.map((vendor) => (
-                <tr key={vendor.id} className="hover:bg-ivory-100/60">
-                  <td className="px-4 py-3 font-medium text-plum">{vendor.name}</td>
-                  <td className="px-4 py-3 text-plum-600">{vendorCategoryLabel(vendor.category)}</td>
-                  <td className="px-4 py-3 text-plum-400">{vendor.contactEmail ?? "—"}</td>
-                  <td className="px-4 py-3 text-plum-400">{vendor.phone ?? "—"}</td>
-                </tr>
-              ))}
-              {vendors && vendors.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-plum-400">
-                    No vendors yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {vendors && vendors.length === 0 && (
+        <div className={`text-center text-plum-400 ${cardClass}`}>No vendors yet.</div>
+      )}
+
+      {vendors && vendors.length > 0 && (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {vendors.map((vendor) => (
+            <div
+              key={vendor.id}
+              className="overflow-hidden rounded-card border border-gold-100 bg-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
+            >
+              <div
+                className="h-32 bg-cover bg-center bg-gold-100"
+                style={{ backgroundImage: `url(${vendorCategoryPhoto[vendor.category]})` }}
+              />
+              <div className="p-5">
+                <p className="text-xs font-medium uppercase tracking-[0.15em] text-gold-700">
+                  {vendorCategoryLabel(vendor.category)}
+                </p>
+                <p className="mt-1 font-heading text-xl font-semibold text-plum">{vendor.name}</p>
+                <p className="mt-2 text-sm text-plum-400">{vendor.contactEmail ?? "No email on file"}</p>
+                <p className="text-sm text-plum-400">{vendor.phone ?? "No phone on file"}</p>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }

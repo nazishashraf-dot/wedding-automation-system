@@ -12,7 +12,15 @@ import {
 } from "@/lib/api";
 import { formatDate, planningStatusLabel } from "@/lib/format";
 import Badge from "@/components/Badge";
-import { btnPrimary, btnSecondary, cardClass, inputClass, planningStatusTone } from "@/lib/ui";
+import CoupleName from "@/components/CoupleName";
+import {
+  btnPrimary,
+  btnSecondary,
+  cardClass,
+  inputClass,
+  planningStatusTone,
+  weddingPhotoFor,
+} from "@/lib/ui";
 
 export default function WeddingsPage() {
   const [weddings, setWeddings] = useState<Wedding[] | null>(null);
@@ -68,7 +76,7 @@ export default function WeddingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-heading text-3xl font-semibold text-wine-600">Weddings</h1>
+        <h1 className="font-heading text-4xl font-semibold text-wine-600 sm:text-5xl">Weddings</h1>
         <button onClick={() => setShowForm((s) => !s)} className={showForm ? btnSecondary : btnPrimary}>
           {showForm ? "Cancel" : "New Wedding"}
         </button>
@@ -120,45 +128,46 @@ export default function WeddingsPage() {
 
       {error && <p className="text-sm text-rose-700">{error}</p>}
 
-      <div className={`overflow-hidden !p-0 ${cardClass}`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
-              <tr>
-                <th className="px-4 py-3 font-medium">Client</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Venue</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gold-100">
-              {weddings?.map((wedding) => (
-                <tr key={wedding.id} className="hover:bg-ivory-100/60">
-                  <td className="px-4 py-3 font-medium">
-                    <Link href={`/weddings/${wedding.id}`} className="text-wine-600 hover:underline">
-                      {wedding.client?.fullName ?? "—"}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-plum-600">{formatDate(wedding.weddingDate)}</td>
-                  <td className="px-4 py-3 text-plum-600">{wedding.venue ?? "—"}</td>
-                  <td className="px-4 py-3">
-                    <Badge tone={planningStatusTone(wedding.planningStatus)}>
-                      {planningStatusLabel(wedding.planningStatus)}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-              {weddings && weddings.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-plum-400">
-                    No weddings yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {weddings && weddings.length === 0 && (
+        <div className={`text-center text-plum-400 ${cardClass}`}>No weddings yet.</div>
+      )}
+
+      {weddings && weddings.length > 0 && (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {weddings.map((wedding) => (
+            <Link
+              key={wedding.id}
+              href={`/weddings/${wedding.id}`}
+              className="overflow-hidden rounded-card border border-gold-100 bg-white shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
+            >
+              <div
+                className="h-40 bg-cover bg-center bg-gold-100"
+                style={{ backgroundImage: `url(${weddingPhotoFor(wedding.id)})` }}
+              />
+              <div className="p-5">
+                <p className="font-heading text-xl font-semibold text-plum">
+                  {wedding.client ? (
+                    <CoupleName
+                      fullName={wedding.client.fullName}
+                      partnerName={wedding.client.partnerName}
+                    />
+                  ) : (
+                    "—"
+                  )}
+                </p>
+                <p className="mt-1 text-sm text-plum-400">
+                  {formatDate(wedding.weddingDate)} · {wedding.venue ?? "Venue to be confirmed"}
+                </p>
+                <div className="mt-3">
+                  <Badge tone={planningStatusTone(wedding.planningStatus)}>
+                    {planningStatusLabel(wedding.planningStatus)}
+                  </Badge>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }

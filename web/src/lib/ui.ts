@@ -1,9 +1,57 @@
+import type { VendorCategory } from "./api";
+
 // Shared visual-design building blocks so every page pulls from the same
 // palette instead of scattering one-off classes/colors. Status "tone" is
 // meaningful across the app: sage = confirmed/done, gold = pending/active,
 // rose = overdue/urgent, neutral = not yet started / archived.
 
 export type Tone = "sage" | "gold" | "rose" | "neutral";
+
+// Curated, hand-checked real photography (Unsplash) so the app reads as a
+// wedding brand rather than flat color blocks. Each URL was opened and
+// visually confirmed before use. CSS background-image (not <img>/next/image)
+// is used everywhere these are consumed, with a solid color underneath —
+// if a URL ever 404s, the layout quietly falls back to that color instead
+// of a broken-image icon.
+const UNSPLASH = (id: string, w = 1600) =>
+  `https://images.unsplash.com/${id}?q=80&w=${w}&auto=format&fit=crop`;
+
+// The single dedicated image for the dashboard's hero banner.
+export const heroPhotoUrl = UNSPLASH("photo-1519225421980-715cb0215aed");
+
+// The single dedicated image for the public intake form's full-bleed
+// background.
+export const intakeBackgroundPhotoUrl = UNSPLASH("photo-1520854221256-17451cc331bf");
+
+// A small pool of real wedding-photography images, deterministically
+// assigned per wedding so a given wedding always shows the same photo
+// across the weddings grid and its own detail page header.
+const WEDDING_PHOTO_POOL = [
+  UNSPLASH("photo-1465495976277-4387d4b0b4c6"),
+  UNSPLASH("photo-1583939003579-730e3918a45a"),
+  UNSPLASH("photo-1606216794074-735e91aa2c92"),
+  UNSPLASH("photo-1519741497674-611481863552"),
+  UNSPLASH("photo-1522673607200-164d1b6ce486"),
+];
+
+export function weddingPhotoFor(weddingId: string): string {
+  let hash = 0;
+  for (let i = 0; i < weddingId.length; i++) {
+    hash = (hash * 31 + weddingId.charCodeAt(i)) >>> 0;
+  }
+  return WEDDING_PHOTO_POOL[hash % WEDDING_PHOTO_POOL.length];
+}
+
+// One tasteful, category-matched image per vendor type for the vendor grid.
+export const vendorCategoryPhoto: Record<VendorCategory, string> = {
+  florist: UNSPLASH("photo-1465146344425-f00d5f5c8f07"),
+  caterer: UNSPLASH("photo-1519225421980-715cb0215aed"),
+  venue: UNSPLASH("photo-1519167758481-83f550bb49b3"),
+  photographer: UNSPLASH("photo-1606216794074-735e91aa2c92"),
+  dj_band: UNSPLASH("photo-1493225457124-a3eb161ffa5f"),
+  hair_makeup: UNSPLASH("photo-1522337360788-8b13dee7a37e"),
+  other: UNSPLASH("photo-1522673607200-164d1b6ce486"),
+};
 
 export const badgeToneClasses: Record<Tone, string> = {
   sage: "bg-sage-100 text-sage-700 border-sage-200",

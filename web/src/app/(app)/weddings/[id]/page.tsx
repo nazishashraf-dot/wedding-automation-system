@@ -33,6 +33,8 @@ import {
 } from "@/lib/format";
 import SectionHeading from "@/components/SectionHeading";
 import Badge from "@/components/Badge";
+import CoupleName from "@/components/CoupleName";
+import PhotoBackdrop from "@/components/PhotoBackdrop";
 import {
   btnPrimary,
   btnPrimarySm,
@@ -45,7 +47,12 @@ import {
   selectToneClasses,
   taskStatusTone,
   vendorLinkStatusTone,
+  weddingPhotoFor,
 } from "@/lib/ui";
+
+function formatMonthYear(value: string): string {
+  return new Date(value).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
 
 export default function WeddingDetailPage({
   params,
@@ -282,27 +289,48 @@ export default function WeddingDetailPage({
   const linkableVendors = allVendors.filter((v) => !linkedVendorIds.has(v.id));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="font-heading text-3xl font-semibold text-plum">
-            {wedding.client?.fullName}
-            {wedding.client?.partnerName ? ` & ${wedding.client.partnerName}` : ""}
+    <div className="-mx-4 -mt-10 space-y-6 sm:-mx-6">
+      <div className="relative flex h-[260px] flex-col justify-end overflow-hidden sm:h-[300px]">
+        <PhotoBackdrop
+          src={weddingPhotoFor(wedding.id)}
+          blurred
+          scrimClassName="bg-photo-scrim-soft"
+        />
+        <button
+          onClick={handleCopyIntakeLink}
+          className="absolute right-4 top-4 z-10 inline-flex items-center justify-center rounded-full bg-ivory/95 px-4 py-1.5 text-xs font-medium text-wine-600 shadow-soft transition-colors hover:bg-ivory sm:right-8 sm:top-6"
+        >
+          {linkCopied ? "Copied!" : "Copy intake form link"}
+        </button>
+        <div className="relative z-10 px-4 pb-6 sm:px-8 sm:pb-8">
+          {wedding.client?.partnerName && (
+            <p className="font-script text-lg text-gold-200 sm:text-xl">
+              est. {formatMonthYear(wedding.weddingDate)}
+            </p>
+          )}
+          <h1 className="font-heading text-3xl font-semibold leading-tight text-ivory sm:text-4xl md:text-5xl">
+            {wedding.client ? (
+              <CoupleName
+                fullName={wedding.client.fullName}
+                partnerName={wedding.client.partnerName}
+                ampersandClassName="text-gold-200"
+              />
+            ) : (
+              "—"
+            )}
           </h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-plum-400">
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ivory/85">
             <span>{formatDate(wedding.weddingDate)}</span>
             <span aria-hidden>·</span>
-            <span>{wedding.venue ?? "Venue TBD"}</span>
+            <span>{wedding.venue ?? "Venue to be confirmed"}</span>
             <Badge tone={planningStatusTone(wedding.planningStatus)}>
               {planningStatusLabel(wedding.planningStatus)}
             </Badge>
           </p>
         </div>
-        <button onClick={handleCopyIntakeLink} className={btnSecondarySm}>
-          {linkCopied ? "Copied!" : "Copy intake form link"}
-        </button>
       </div>
 
+      <div className="space-y-6 px-4 sm:px-6">
       {error && <p className="text-sm text-rose-700">{error}</p>}
 
       <section className={cardClass}>
@@ -643,6 +671,7 @@ export default function WeddingDetailPage({
           <p className="text-sm leading-relaxed text-plum-600">{wedding.styleNotes}</p>
         </section>
       )}
+      </div>
     </div>
   );
 }

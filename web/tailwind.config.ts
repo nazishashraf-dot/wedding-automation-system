@@ -64,6 +64,7 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-body)", "ui-sans-serif", "system-ui", "sans-serif"],
         heading: ["var(--font-heading)", "ui-serif", "Georgia", "serif"],
+        script: ["var(--font-script)", "cursive"],
       },
       boxShadow: {
         soft: "0 1px 2px 0 rgba(91, 35, 51, 0.06), 0 4px 10px -4px rgba(91, 35, 51, 0.10)",
@@ -74,6 +75,8 @@ const config: Config = {
       },
       backgroundImage: {
         "wash-blush": "linear-gradient(180deg, #F7EAE7 0%, #F9EFEA 30%, #FAF6F0 75%, #FAF6F0 100%)",
+        "photo-scrim": "linear-gradient(180deg, rgba(36,20,25,0.20) 0%, rgba(36,20,25,0.55) 60%, rgba(36,20,25,0.86) 100%)",
+        "photo-scrim-soft": "linear-gradient(180deg, rgba(36,20,25,0.30) 0%, rgba(36,20,25,0.72) 100%)",
       },
     },
   },
