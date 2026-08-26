@@ -11,6 +11,7 @@ import {
   Task,
   Vendor,
   Wedding,
+  WeddingVendorLink,
   createWeddingMeeting,
   createWeddingPayment,
   createWeddingTask,
@@ -215,6 +216,29 @@ export default function WeddingDetailPage({
   const [paymentDueDate, setPaymentDueDate] = useState("");
   const [paymentVendorId, setPaymentVendorId] = useState("");
   const [addingPayment, setAddingPayment] = useState(false);
+  const paymentSectionRef = useRef<HTMLDivElement>(null);
+
+  function vendorPaidTotal(vendorId: string): number {
+    return (payments ?? [])
+      .filter((p) => p.direction === "outgoing" && p.status === "paid" && p.vendorId === vendorId)
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+  }
+
+  function vendorPaymentProgressText(quoted: number | null, paid: number): string {
+    if (quoted === null && paid === 0) return "No price set";
+    if (quoted === null) return `${formatMoney(paid)} paid`;
+    if (paid === 0) return `${formatMoney(quoted)} quoted`;
+    return `${formatMoney(quoted)} quoted · ${formatMoney(paid)} paid`;
+  }
+
+  function handleQuickAddVendorPayment(link: WeddingVendorLink) {
+    setPaymentDirection("outgoing");
+    setPaymentVendorId(link.vendorId);
+    setPaymentDescription(`${link.vendor.name} payment`);
+    setPaymentAmount(link.priceQuoted ?? "");
+    setShowPaymentForm(true);
+    paymentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   async function refresh() {
     try {
@@ -676,7 +700,7 @@ export default function WeddingDetailPage({
         </div>
       </section>
 
-      <section className={cardClass}>
+      <section ref={paymentSectionRef} className={cardClass}>
         <SectionHeading
           action={
             <button onClick={() => setShowPaymentForm((s) => !s)} className={btnPrimarySm}>
@@ -1162,31 +1186,51 @@ export default function WeddingDetailPage({
           <>
             {/* Mobile: stacked cards. */}
             <div className="mb-4 space-y-3 sm:hidden">
-              {wedding.vendors.map((link) => (
-                <div key={link.vendorId} className="rounded-lg border border-gold-100 bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-medium text-plum">{link.vendor.name}</p>
-                    <span className="text-xs text-plum-400">
-                      {vendorCategoryLabel(link.vendor.category)}
-                    </span>
+              {wedding.vendors.map((link) => {
+                const quoted = link.priceQuoted ? Number(link.priceQuoted) : null;
+                const paidTotal = vendorPaidTotal(link.vendorId);
+                const isPaidInFull = quoted !== null && quoted > 0 && paidTotal >= quoted;
+                return (
+                  <div key={link.vendorId} className="rounded-lg border border-gold-100 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-medium text-plum">{link.vendor.name}</p>
+                      <span className="text-xs text-plum-400">
+                        {vendorCategoryLabel(link.vendor.category)}
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex items-center justify-between gap-3">
+                      <select
+                        value={link.status}
+                        onChange={(e) => handleStatusChange(link.vendorId, e.target.value)}
+                        className={`${selectSmClass} ${selectToneClasses[vendorLinkStatusTone(link.status)]}`}
+                      >
+                        <option value="contacted">Contacted</option>
+                        <option value="quoted">Quoted</option>
+                        <option value="confirmed">Confirmed</option>
+                      </select>
+                      <InlinePriceEditor
+                        value={link.priceQuoted}
+                        onSave={(price) => handleVendorPriceChange(link.vendorId, price)}
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <p className="text-xs text-plum-400">
+                        {vendorPaymentProgressText(quoted, paidTotal)}
+                      </p>
+                      {isPaidInFull && <Badge tone="sage">Paid in full</Badge>}
+                    </div>
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAddVendorPayment(link)}
+                        className={btnSecondarySm}
+                      >
+                        + Add Payment
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-2.5 flex items-center justify-between gap-3">
-                    <select
-                      value={link.status}
-                      onChange={(e) => handleStatusChange(link.vendorId, e.target.value)}
-                      className={`${selectSmClass} ${selectToneClasses[vendorLinkStatusTone(link.status)]}`}
-                    >
-                      <option value="contacted">Contacted</option>
-                      <option value="quoted">Quoted</option>
-                      <option value="confirmed">Confirmed</option>
-                    </select>
-                    <InlinePriceEditor
-                      value={link.priceQuoted}
-                      onSave={(price) => handleVendorPriceChange(link.vendorId, price)}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Tablet and up: full table. */}
@@ -1198,34 +1242,58 @@ export default function WeddingDetailPage({
                     <th className="px-3 py-2 font-medium">Category</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium">Price quoted</th>
+                    <th className="px-3 py-2 font-medium">Payment progress</th>
+                    <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gold-100">
-                  {wedding.vendors.map((link) => (
-                    <tr key={link.vendorId}>
-                      <td className="px-3 py-2 font-medium text-plum">{link.vendor.name}</td>
-                      <td className="px-3 py-2 text-plum-600">
-                        {vendorCategoryLabel(link.vendor.category)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={link.status}
-                          onChange={(e) => handleStatusChange(link.vendorId, e.target.value)}
-                          className={`${selectSmClass} ${selectToneClasses[vendorLinkStatusTone(link.status)]}`}
-                        >
-                          <option value="contacted">Contacted</option>
-                          <option value="quoted">Quoted</option>
-                          <option value="confirmed">Confirmed</option>
-                        </select>
-                      </td>
-                      <td className="px-3 py-2 text-plum-600">
-                        <InlinePriceEditor
-                          value={link.priceQuoted}
-                          onSave={(price) => handleVendorPriceChange(link.vendorId, price)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                  {wedding.vendors.map((link) => {
+                    const quoted = link.priceQuoted ? Number(link.priceQuoted) : null;
+                    const paidTotal = vendorPaidTotal(link.vendorId);
+                    const isPaidInFull = quoted !== null && quoted > 0 && paidTotal >= quoted;
+                    return (
+                      <tr key={link.vendorId}>
+                        <td className="px-3 py-2 font-medium text-plum">{link.vendor.name}</td>
+                        <td className="px-3 py-2 text-plum-600">
+                          {vendorCategoryLabel(link.vendor.category)}
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={link.status}
+                            onChange={(e) => handleStatusChange(link.vendorId, e.target.value)}
+                            className={`${selectSmClass} ${selectToneClasses[vendorLinkStatusTone(link.status)]}`}
+                          >
+                            <option value="contacted">Contacted</option>
+                            <option value="quoted">Quoted</option>
+                            <option value="confirmed">Confirmed</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2 text-plum-600">
+                          <InlinePriceEditor
+                            value={link.priceQuoted}
+                            onSave={(price) => handleVendorPriceChange(link.vendorId, price)}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-plum-600">
+                              {vendorPaymentProgressText(quoted, paidTotal)}
+                            </span>
+                            {isPaidInFull && <Badge tone="sage">Paid in full</Badge>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAddVendorPayment(link)}
+                            className={btnSecondarySm}
+                          >
+                            + Add Payment
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
