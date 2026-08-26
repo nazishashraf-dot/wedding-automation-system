@@ -9,6 +9,7 @@ import vendorsRouter from "./routes/vendors";
 import tasksRouter from "./routes/tasks";
 import authRouter from "./routes/auth";
 import meetingsRouter from "./routes/meetings";
+import documentsRouter from "./routes/documents";
 import formsRouter from "./routes/forms";
 import dashboardRouter from "./routes/dashboard";
 import adminRouter from "./routes/admin";
@@ -42,6 +43,7 @@ app.use("/weddings", requireAuth, weddingsRouter);
 app.use("/vendors", requireAuth, vendorsRouter);
 app.use("/tasks", requireAuth, tasksRouter);
 app.use("/meetings", requireAuth, meetingsRouter);
+app.use("/documents", requireAuth, documentsRouter);
 app.use("/dashboard", requireAuth, dashboardRouter);
 app.use("/admin", requireAuth, adminRouter);
 

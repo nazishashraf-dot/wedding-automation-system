@@ -84,7 +84,26 @@ model User {
   role         Role     @default(assistant)
   createdAt    DateTime @default(now())
 
+  documents    Document[]
+
   @@map("users")
+}
+
+// Wedding-scoped files (contracts, mood boards, floor plans, ...) — the
+// actual bytes live in Vercel Blob; this row is just the metadata + URL.
+model Document {
+  id            String   @id @default(uuid())
+  weddingId     String
+  wedding       Wedding  @relation(fields: [weddingId], references: [id])
+  fileName      String
+  fileUrl       String
+  fileType      String
+  fileSizeBytes Int
+  uploadedById  String
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  uploadedAt    DateTime @default(now())
+
+  @@map("documents")
 }
 
 model Client {
@@ -124,6 +143,7 @@ model Wedding {
   tasks           Task[]
   calendarEvents  CalendarEvent[]
   emailLogs       EmailLog[]
+  documents       Document[]
 
   @@map("weddings")
 }

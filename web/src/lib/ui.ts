@@ -86,6 +86,12 @@ export function vendorLinkStatusTone(status: string): Tone {
   return "neutral"; // contacted
 }
 
+export function documentTypeTone(fileType: string): Tone {
+  if (fileType === "application/pdf") return "rose";
+  if (fileType.startsWith("image/")) return "sage";
+  return "gold";
+}
+
 export function clientStatusTone(status: string): Tone {
   if (status === "active" || status === "completed") return "sage";
   if (status === "lead") return "gold";

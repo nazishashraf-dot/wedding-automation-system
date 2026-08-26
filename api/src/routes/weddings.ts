@@ -8,6 +8,7 @@ import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../time
 import { pushCalendarEventCreate } from "../googleCalendar";
 import { TemplateNotFoundError, sendTemplatedEmail } from "../email";
 import { formatDateForEmail } from "../templateVars";
+import { deleteDocumentBlobs, documentUpload, uploadDocumentToBlob } from "../documents";
 
 const router = Router();
 
@@ -162,15 +163,25 @@ router.delete(
     const existing = await prisma.wedding.findUnique({ where: { id } });
     if (!existing) throw notFound("Wedding");
 
+    const documents = await prisma.document.findMany({ where: { weddingId: id } });
+    if (documents.length > 0) {
+      try {
+        await deleteDocumentBlobs(documents.map((d) => d.fileUrl));
+      } catch (err) {
+        console.error("Failed to delete wedding documents from Blob storage:", err);
+      }
+    }
+
     // Wedding's child records (tasks, calendar events, email logs, vendor
-    // links) are RESTRICT by default, so they're cleared first — this
-    // deletes the wedding and everything planned under it, but leaves the
-    // client record itself untouched.
+    // links, documents) are RESTRICT by default, so they're cleared first —
+    // this deletes the wedding and everything planned under it, but leaves
+    // the client record itself untouched.
     await prisma.$transaction([
       prisma.emailLog.deleteMany({ where: { weddingId: id } }),
       prisma.calendarEvent.deleteMany({ where: { weddingId: id } }),
       prisma.task.deleteMany({ where: { weddingId: id } }),
       prisma.weddingVendor.deleteMany({ where: { weddingId: id } }),
+      prisma.document.deleteMany({ where: { weddingId: id } }),
       prisma.wedding.delete({ where: { id } }),
     ]);
     res.status(204).send();
@@ -362,6 +373,59 @@ router.get(
       orderBy: { sentAt: "desc" },
     });
     res.json(logs);
+  })
+);
+
+const documentInclude = {
+  uploadedBy: { select: { id: true, name: true } },
+} as const;
+
+router.get(
+  "/:id/documents",
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const documents = await prisma.document.findMany({
+      where: { weddingId },
+      orderBy: { uploadedAt: "desc" },
+      include: documentInclude,
+    });
+    res.json(documents);
+  })
+);
+
+router.post(
+  "/:id/documents",
+  documentUpload.single("file"),
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    if (!req.file) throw new AppError(400, "No file provided");
+    if (!req.user) throw new AppError(401, "Authentication required");
+
+    const { url } = await uploadDocumentToBlob(
+      weddingId,
+      req.file.originalname,
+      req.file.buffer,
+      req.file.mimetype
+    );
+
+    const document = await prisma.document.create({
+      data: {
+        weddingId,
+        fileName: req.file.originalname,
+        fileUrl: url,
+        fileType: req.file.mimetype,
+        fileSizeBytes: req.file.size,
+        uploadedById: req.user.id,
+      },
+      include: documentInclude,
+    });
+    res.status(201).json(document);
   })
 );
 

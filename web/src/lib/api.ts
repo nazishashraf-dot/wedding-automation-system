@@ -178,6 +178,17 @@ export interface DashboardData {
   needsAttention: DashboardAttentionItem[];
 }
 
+export interface Document {
+  id: string;
+  weddingId: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSizeBytes: number;
+  uploadedAt: string;
+  uploadedBy: { id: string; name: string };
+}
+
 export interface EmailLogEntry {
   id: string;
   weddingId: string;
@@ -389,6 +400,60 @@ export const sendWeddingEmail = (
     method: "POST",
     body: JSON.stringify(data),
   });
+
+// Documents
+export const listWeddingDocuments = (weddingId: string) =>
+  request<Document[]>(`/weddings/${weddingId}/documents`);
+
+export function uploadWeddingDocument(
+  weddingId: string,
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<Document> {
+  // Upload progress isn't available through fetch in a way that's reliably
+  // supported across browsers, hence XHR here instead of the shared
+  // request() helper.
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    xhr.open("POST", `${API_BASE_URL}/weddings/${weddingId}/documents`);
+    xhr.withCredentials = true;
+
+    xhr.upload.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as Document);
+        } catch {
+          reject(new ApiError(xhr.status, "Invalid response from server"));
+        }
+        return;
+      }
+      let message = `Upload failed with status ${xhr.status}`;
+      let details: unknown;
+      try {
+        const body = JSON.parse(xhr.responseText);
+        message = body?.error?.message ?? message;
+        details = body?.error?.details;
+      } catch {
+        // no JSON body
+      }
+      reject(new ApiError(xhr.status, message, details));
+    };
+
+    xhr.onerror = () => reject(new ApiError(0, "Network error during upload"));
+    xhr.send(formData);
+  });
+}
+
+export const deleteDocument = (id: string) => request<void>(`/documents/${id}`, { method: "DELETE" });
 
 // Vendors
 export const listVendors = (category?: VendorCategory) =>

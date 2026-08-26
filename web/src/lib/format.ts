@@ -87,6 +87,28 @@ export function formatOverdue(daysOverdue: number): string {
   return `${daysOverdue} days overdue`;
 }
 
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unitIndex]}`;
+}
+
+export function documentTypeLabel(fileType: string): string {
+  if (fileType === "application/pdf") return "PDF";
+  if (fileType.startsWith("image/")) return "Image";
+  if (fileType === "text/csv" || fileType.includes("spreadsheet") || fileType === "application/vnd.ms-excel")
+    return "Spreadsheet";
+  if (fileType.includes("word") || fileType === "application/msword") return "Word Doc";
+  if (fileType === "text/plain") return "Text";
+  return "File";
+}
+
 export function formatMoney(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "—";
   const num = typeof value === "string" ? Number(value) : value;
