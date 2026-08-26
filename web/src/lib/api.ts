@@ -1,4 +1,7 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Same-origin path, proxied server-side to the API by the rewrite in
+// next.config.mjs — see that file for why (cross-origin cookies get
+// blocked by the browser; this makes every request first-party instead).
+const API_BASE_URL = "/api";
 
 export type ClientStatus = "lead" | "active" | "completed" | "archived";
 export type PlanningStatus = "inquiry" | "booked" | "in_progress" | "final_month" | "completed";

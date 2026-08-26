@@ -21,16 +21,15 @@ function getJwtSecret(): string {
   return secret;
 }
 
-// Cross-origin in production (Vercel frontend, Railway API) requires
-// SameSite=None + Secure. Locally both run on http://localhost, where
-// SameSite=None without Secure is rejected by browsers, so dev falls back
-// to Lax on plain http.
+// The browser only ever talks to the frontend's own origin — Vercel proxies
+// /api/* to this server (see web/next.config.mjs) — so the cookie is
+// first-party and Lax is enough even though this API and the frontend live
+// on different domains. `secure` still needs to be off for local http dev.
 function cookieOptions(): CookieOptions {
-  const isProduction = process.env.NODE_ENV === "production";
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
     path: "/",
   };
 }
