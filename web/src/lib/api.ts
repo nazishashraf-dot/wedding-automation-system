@@ -298,6 +298,32 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// FormData bodies (file uploads) can't go through request() — it always
+// sets Content-Type: application/json, which stomps the multipart boundary
+// the browser needs to set itself.
+async function postFormData<T>(path: string, formData: FormData): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    let message = `Request failed with status ${res.status}`;
+    let details: unknown;
+    try {
+      const body = await res.json();
+      message = body?.error?.message ?? message;
+      details = body?.error?.details;
+    } catch {
+      // no JSON body
+    }
+    throw new ApiError(res.status, message, details);
+  }
+
+  return res.json() as Promise<T>;
+}
+
 // Auth
 export const login = (email: string, password: string) =>
   request<AuthUser>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
@@ -544,3 +570,64 @@ export const createVendor = (data: {
   notes?: string;
 }) => request<Vendor>("/vendors", { method: "POST", body: JSON.stringify(data) });
 export const deleteVendor = (id: string) => request<void>(`/vendors/${id}`, { method: "DELETE" });
+
+// CSV import (clients + vendors) — preview never writes to the database;
+// confirm re-validates server-side against the same uploaded file rather
+// than trusting whatever the browser last saw.
+export interface ImportRow {
+  rowNumber: number;
+  mapped: Record<string, string | number | null>;
+  isDuplicate: boolean;
+  errors: string[];
+  warnings: string[];
+  importable: boolean;
+}
+
+export interface ImportPreviewResult {
+  columnMap: Record<string, string>;
+  unmappedHeaders: string[];
+  rows: ImportRow[];
+}
+
+export interface ClientImportSummary {
+  totalRows: number;
+  imported: number;
+  weddingsCreated: number;
+  skippedDuplicates: number;
+  skippedErrors: number;
+  skippedByChoice: number;
+}
+
+export interface VendorImportSummary {
+  totalRows: number;
+  imported: number;
+  skippedDuplicates: number;
+  skippedErrors: number;
+  skippedByChoice: number;
+}
+
+export const previewClientsImport = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return postFormData<ImportPreviewResult>("/import/clients/preview", formData);
+};
+
+export const confirmClientsImport = (file: File, includeRows: number[]) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("includeRows", JSON.stringify(includeRows));
+  return postFormData<ClientImportSummary>("/import/clients/confirm", formData);
+};
+
+export const previewVendorsImport = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return postFormData<ImportPreviewResult>("/import/vendors/preview", formData);
+};
+
+export const confirmVendorsImport = (file: File, includeRows: number[]) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("includeRows", JSON.stringify(includeRows));
+  return postFormData<VendorImportSummary>("/import/vendors/confirm", formData);
+};

@@ -96,6 +96,16 @@ export default function SettingsPage() {
         )}
       </section>
 
+      <section className={cardClass}>
+        <SectionHeading>Import Data</SectionHeading>
+        <p className="mb-3 text-xs text-plum-400">
+          Bring existing clients or vendors in from a CSV export (e.g. Google Sheets).
+        </p>
+        <Link href="/import" className={btnSecondarySm}>
+          Import from CSV
+        </Link>
+      </section>
+
       {user?.role === "owner" && (
         <section className={cardClass}>
           <SectionHeading>Team</SectionHeading>

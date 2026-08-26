@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ApiError, Vendor, VendorCategory, createVendor, deleteVendor, listVendors } from "@/lib/api";
 import { vendorCategoryLabel } from "@/lib/format";
 import DeleteButton from "@/components/DeleteButton";
@@ -82,11 +83,16 @@ export default function VendorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-heading text-4xl font-semibold text-wine-600 sm:text-5xl">Vendors</h1>
-        <button onClick={() => setShowForm((s) => !s)} className={showForm ? btnSecondary : btnPrimary}>
-          {showForm ? "Cancel" : "New Vendor"}
-        </button>
+        <div className="flex gap-2">
+          <Link href="/import?type=vendors" className={btnSecondary}>
+            Import from CSV
+          </Link>
+          <button onClick={() => setShowForm((s) => !s)} className={showForm ? btnSecondary : btnPrimary}>
+            {showForm ? "Cancel" : "New Vendor"}
+          </button>
+        </div>
       </div>
 
       {showForm && (
