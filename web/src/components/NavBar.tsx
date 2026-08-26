@@ -16,11 +16,11 @@ export default function NavBar() {
 
   return (
     <nav className="relative bg-wine-500">
-      <div className="mx-auto flex max-w-6xl items-center gap-8 px-4 py-4 sm:px-6">
-        <span className="font-heading text-xl font-semibold tracking-wide text-ivory">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-8 sm:px-6 sm:py-4 lg:px-10 xl:px-14">
+        <span className="shrink-0 font-heading text-xl font-semibold tracking-wide text-ivory">
           Wedding&nbsp;Studio
         </span>
-        <div className="flex flex-wrap gap-1">
+        <div className="-mx-4 flex gap-1 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {LINKS.map((link) => {
             const active =
               link.href === "/" ? pathname === "/" : pathname?.startsWith(link.href);
@@ -28,7 +28,7 @@ export default function NavBar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-sm font-medium transition-colors sm:py-1.5 ${
                   active
                     ? "bg-ivory text-wine-600 shadow-soft"
                     : "text-ivory/85 hover:bg-ivory/15 hover:text-ivory"

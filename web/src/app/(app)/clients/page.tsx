@@ -109,48 +109,81 @@ export default function ClientsPage() {
 
       {error && <p className="text-sm text-rose-700">{error}</p>}
 
-      <div className={`overflow-hidden !p-0 ${cardClass}`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
-              <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Wedding date</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gold-100">
-              {clients?.map((client) => (
-                <tr key={client.id} className="hover:bg-ivory-100/60">
-                  <td className="px-4 py-3 font-medium text-plum">
+      {clients && clients.length === 0 && (
+        <div className={`text-center text-plum-400 ${cardClass}`}>No clients yet.</div>
+      )}
+
+      {clients && clients.length > 0 && (
+        <>
+          {/* Mobile: stacked cards. Hidden from sm and up, where the table takes over. */}
+          <div className="space-y-3 sm:hidden">
+            {clients.map((client) => (
+              <div key={client.id} className="rounded-card border border-gold-100 bg-white p-4 shadow-soft">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium text-plum">
                     {client.fullName}
                     {client.partnerName ? ` & ${client.partnerName}` : ""}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={clientStatusTone(client.status)}>
-                      {clientStatusLabel(client.status)}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-plum-600">
-                    {client.weddings && client.weddings.length > 0
-                      ? formatDate(client.weddings[0].weddingDate)
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-plum-400">{client.email}</td>
-                </tr>
-              ))}
-              {clients && clients.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-plum-400">
-                    No clients yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  </p>
+                  <Badge tone={clientStatusTone(client.status)}>
+                    {clientStatusLabel(client.status)}
+                  </Badge>
+                </div>
+                <dl className="mt-3 space-y-1.5 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-plum-400">Wedding date</dt>
+                    <dd className="text-plum-600">
+                      {client.weddings && client.weddings.length > 0
+                        ? formatDate(client.weddings[0].weddingDate)
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-plum-400">Email</dt>
+                    <dd className="truncate text-plum-600">{client.email}</dd>
+                  </div>
+                </dl>
+              </div>
+            ))}
+          </div>
+
+          {/* Tablet and up: full table. */}
+          <div className={`hidden overflow-hidden !p-0 sm:block ${cardClass}`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Wedding date</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gold-100">
+                  {clients.map((client) => (
+                    <tr key={client.id} className="hover:bg-ivory-100/60">
+                      <td className="px-4 py-3 font-medium text-plum">
+                        {client.fullName}
+                        {client.partnerName ? ` & ${client.partnerName}` : ""}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge tone={clientStatusTone(client.status)}>
+                          {clientStatusLabel(client.status)}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-plum-600">
+                        {client.weddings && client.weddings.length > 0
+                          ? formatDate(client.weddings[0].weddingDate)
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-plum-400">{client.email}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

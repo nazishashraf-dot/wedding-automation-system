@@ -450,54 +450,84 @@ export default function WeddingDetailPage({
 
         {taskError && <p className="mb-2 text-sm text-rose-700">{taskError}</p>}
 
-        <div className="overflow-x-auto rounded-lg border border-gold-100">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
-              <tr>
-                <th className="px-3 py-2 font-medium">Title</th>
-                <th className="px-3 py-2 font-medium">Due date</th>
-                <th className="px-3 py-2 font-medium">Priority</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gold-100">
-              {tasks?.map((task) => (
-                <tr key={task.id}>
-                  <td className="px-3 py-2 font-medium text-plum">{task.title}</td>
-                  <td className="px-3 py-2 text-plum-600">
-                    <span className="flex items-center gap-1.5">
-                      {formatDate(task.dueDate)}
-                      {task.overdue && <Badge tone="rose">Overdue</Badge>}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-plum-600">{taskPriorityLabel(task.priority)}</td>
-                  <td className="px-3 py-2">
-                    <select
-                      value={task.status}
-                      onChange={(e) => handleTaskStatusChange(task.id, e.target.value)}
-                      className={`${selectSmClass} ${selectToneClasses[taskStatusTone(task.status)]}`}
-                    >
-                      <option value="todo">{taskStatusLabel("todo")}</option>
-                      <option value="in_progress">{taskStatusLabel("in_progress")}</option>
-                      <option value="done">{taskStatusLabel("done")}</option>
-                    </select>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-plum-400">
-                    {task.source === "auto_generated" ? "Auto" : "Manual"}
-                  </td>
-                </tr>
+        {tasks && tasks.length === 0 && (
+          <p className="rounded-lg border border-gold-100 px-3 py-6 text-center text-sm text-plum-400">
+            No tasks yet.
+          </p>
+        )}
+
+        {tasks && tasks.length > 0 && (
+          <>
+            {/* Mobile: stacked cards. */}
+            <div className="space-y-3 sm:hidden">
+              {tasks.map((task) => (
+                <div key={task.id} className="rounded-lg border border-gold-100 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium text-plum">{task.title}</p>
+                    {task.overdue && <Badge tone="rose">Overdue</Badge>}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-plum-400">
+                    <span>Due {formatDate(task.dueDate)}</span>
+                    <span>{taskPriorityLabel(task.priority)} priority</span>
+                    <span>{task.source === "auto_generated" ? "Auto" : "Manual"}</span>
+                  </div>
+                  <select
+                    value={task.status}
+                    onChange={(e) => handleTaskStatusChange(task.id, e.target.value)}
+                    className={`mt-2.5 ${selectSmClass} ${selectToneClasses[taskStatusTone(task.status)]}`}
+                  >
+                    <option value="todo">{taskStatusLabel("todo")}</option>
+                    <option value="in_progress">{taskStatusLabel("in_progress")}</option>
+                    <option value="done">{taskStatusLabel("done")}</option>
+                  </select>
+                </div>
               ))}
-              {tasks && tasks.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-plum-400">
-                    No tasks yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {/* Tablet and up: full table. */}
+            <div className="hidden overflow-x-auto rounded-lg border border-gold-100 sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Title</th>
+                    <th className="px-3 py-2 font-medium">Due date</th>
+                    <th className="px-3 py-2 font-medium">Priority</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium">Source</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gold-100">
+                  {tasks.map((task) => (
+                    <tr key={task.id}>
+                      <td className="px-3 py-2 font-medium text-plum">{task.title}</td>
+                      <td className="px-3 py-2 text-plum-600">
+                        <span className="flex items-center gap-1.5">
+                          {formatDate(task.dueDate)}
+                          {task.overdue && <Badge tone="rose">Overdue</Badge>}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-plum-600">{taskPriorityLabel(task.priority)}</td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={task.status}
+                          onChange={(e) => handleTaskStatusChange(task.id, e.target.value)}
+                          className={`${selectSmClass} ${selectToneClasses[taskStatusTone(task.status)]}`}
+                        >
+                          <option value="todo">{taskStatusLabel("todo")}</option>
+                          <option value="in_progress">{taskStatusLabel("in_progress")}</option>
+                          <option value="done">{taskStatusLabel("done")}</option>
+                        </select>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-plum-400">
+                        {task.source === "auto_generated" ? "Auto" : "Manual"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
 
       <section className={cardClass}>
@@ -558,66 +588,95 @@ export default function WeddingDetailPage({
 
         {meetingError && <p className="mb-2 text-sm text-rose-700">{meetingError}</p>}
 
-        <div className="overflow-x-auto rounded-lg border border-gold-100">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
-              <tr>
-                <th className="px-3 py-2 font-medium">Title</th>
-                <th className="px-3 py-2 font-medium">When</th>
-                <th className="px-3 py-2 font-medium">Type</th>
-                <th className="px-3 py-2 font-medium">Calendar</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gold-100">
-              {meetings?.map((meeting) => (
-                <tr key={meeting.id}>
-                  <td className="px-3 py-2 font-medium text-plum">{meeting.title}</td>
-                  <td className="px-3 py-2 text-plum-600">{formatDateTime(meeting.scheduledAt)}</td>
-                  <td className="px-3 py-2 text-plum-600">{meetingTypeLabel(meeting.type)}</td>
-                  <td className="px-3 py-2">
-                    <Badge tone={meeting.googleEventId ? "sage" : "neutral"}>
-                      {meeting.googleEventId ? "Synced" : "Not synced"}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 text-right">
+        {meetings && meetings.length === 0 && (
+          <p className="rounded-lg border border-gold-100 px-3 py-6 text-center text-sm text-plum-400">
+            No meetings scheduled.
+          </p>
+        )}
+
+        {meetings && meetings.length > 0 && (
+          <>
+            {/* Mobile: stacked cards. */}
+            <div className="space-y-3 sm:hidden">
+              {meetings.map((meeting) => (
+                <div key={meeting.id} className="rounded-lg border border-gold-100 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium text-plum">{meeting.title}</p>
                     <button onClick={() => handleDeleteMeeting(meeting.id)} className={linkRose}>
                       Cancel
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                  <p className="mt-1.5 text-xs text-plum-400">
+                    {formatDateTime(meeting.scheduledAt)} · {meetingTypeLabel(meeting.type)}
+                  </p>
+                  <div className="mt-2.5">
+                    <Badge tone={meeting.googleEventId ? "sage" : "neutral"}>
+                      {meeting.googleEventId ? "Synced" : "Not synced"}
+                    </Badge>
+                  </div>
+                </div>
               ))}
-              {meetings && meetings.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-plum-400">
-                    No meetings scheduled.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {/* Tablet and up: full table. */}
+            <div className="hidden overflow-x-auto rounded-lg border border-gold-100 sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Title</th>
+                    <th className="px-3 py-2 font-medium">When</th>
+                    <th className="px-3 py-2 font-medium">Type</th>
+                    <th className="px-3 py-2 font-medium">Calendar</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gold-100">
+                  {meetings.map((meeting) => (
+                    <tr key={meeting.id}>
+                      <td className="px-3 py-2 font-medium text-plum">{meeting.title}</td>
+                      <td className="px-3 py-2 text-plum-600">{formatDateTime(meeting.scheduledAt)}</td>
+                      <td className="px-3 py-2 text-plum-600">{meetingTypeLabel(meeting.type)}</td>
+                      <td className="px-3 py-2">
+                        <Badge tone={meeting.googleEventId ? "sage" : "neutral"}>
+                          {meeting.googleEventId ? "Synced" : "Not synced"}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button onClick={() => handleDeleteMeeting(meeting.id)} className={linkRose}>
+                          Cancel
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
 
       <section className={cardClass}>
         <SectionHeading>Linked Vendors</SectionHeading>
 
-        <div className="mb-4 overflow-x-auto rounded-lg border border-gold-100">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
-              <tr>
-                <th className="px-3 py-2 font-medium">Vendor</th>
-                <th className="px-3 py-2 font-medium">Category</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Price quoted</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gold-100">
-              {wedding.vendors?.map((link) => (
-                <tr key={link.vendorId}>
-                  <td className="px-3 py-2 font-medium text-plum">{link.vendor.name}</td>
-                  <td className="px-3 py-2 text-plum-600">{vendorCategoryLabel(link.vendor.category)}</td>
-                  <td className="px-3 py-2">
+        {(!wedding.vendors || wedding.vendors.length === 0) && (
+          <p className="mb-4 rounded-lg border border-gold-100 px-3 py-6 text-center text-sm text-plum-400">
+            No vendors linked yet.
+          </p>
+        )}
+
+        {wedding.vendors && wedding.vendors.length > 0 && (
+          <>
+            {/* Mobile: stacked cards. */}
+            <div className="mb-4 space-y-3 sm:hidden">
+              {wedding.vendors.map((link) => (
+                <div key={link.vendorId} className="rounded-lg border border-gold-100 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-medium text-plum">{link.vendor.name}</p>
+                    <span className="text-xs text-plum-400">
+                      {vendorCategoryLabel(link.vendor.category)}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between gap-3">
                     <select
                       value={link.status}
                       onChange={(e) => handleStatusChange(link.vendorId, e.target.value)}
@@ -627,20 +686,49 @@ export default function WeddingDetailPage({
                       <option value="quoted">Quoted</option>
                       <option value="confirmed">Confirmed</option>
                     </select>
-                  </td>
-                  <td className="px-3 py-2 text-plum-600">{formatMoney(link.priceQuoted)}</td>
-                </tr>
+                    <span className="text-sm text-plum-600">{formatMoney(link.priceQuoted)}</span>
+                  </div>
+                </div>
               ))}
-              {(!wedding.vendors || wedding.vendors.length === 0) && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-plum-400">
-                    No vendors linked yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {/* Tablet and up: full table. */}
+            <div className="mb-4 hidden overflow-x-auto rounded-lg border border-gold-100 sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-ivory-100 text-xs uppercase tracking-wide text-plum-400">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Vendor</th>
+                    <th className="px-3 py-2 font-medium">Category</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium">Price quoted</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gold-100">
+                  {wedding.vendors.map((link) => (
+                    <tr key={link.vendorId}>
+                      <td className="px-3 py-2 font-medium text-plum">{link.vendor.name}</td>
+                      <td className="px-3 py-2 text-plum-600">
+                        {vendorCategoryLabel(link.vendor.category)}
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={link.status}
+                          onChange={(e) => handleStatusChange(link.vendorId, e.target.value)}
+                          className={`${selectSmClass} ${selectToneClasses[vendorLinkStatusTone(link.status)]}`}
+                        >
+                          <option value="contacted">Contacted</option>
+                          <option value="quoted">Quoted</option>
+                          <option value="confirmed">Confirmed</option>
+                        </select>
+                      </td>
+                      <td className="px-3 py-2 text-plum-600">{formatMoney(link.priceQuoted)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleLinkVendor} className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">

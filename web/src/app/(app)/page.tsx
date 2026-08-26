@@ -208,7 +208,7 @@ export default function DashboardPage() {
           {data.upcomingWeddings.length === 0 ? (
             <p className="text-sm text-plum-400">Nothing in the next 90 days.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {data.upcomingWeddings.map((w) => (
                 <Link
                   key={w.id}
