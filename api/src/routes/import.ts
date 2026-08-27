@@ -1,8 +1,11 @@
 import { Router } from "express";
 import multer from "multer";
-import { AppError, asyncHandler } from "../errors";
+import { prisma } from "../db";
+import { AppError, asyncHandler, notFound } from "../errors";
+import { param } from "../utils";
 import { confirmClientsImport, previewClientsCsv } from "../import/clients";
 import { confirmVendorsImport, previewVendorsCsv } from "../import/vendors";
+import { confirmGuestsImport, previewGuestsCsv } from "../import/guests";
 
 const router = Router();
 
@@ -76,6 +79,35 @@ router.post(
     if (!req.file) throw new AppError(400, "No file provided");
     const includeRows = parseIncludeRows(req.body.includeRows);
     const result = await confirmVendorsImport(req.file.buffer, includeRows);
+    res.json(result);
+  })
+);
+
+router.post(
+  "/guests/:weddingId/preview",
+  csvUpload.single("file"),
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw new AppError(400, "No file provided");
+    const weddingId = param(req, "weddingId");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const preview = await previewGuestsCsv(weddingId, req.file.buffer);
+    res.json(preview);
+  })
+);
+
+router.post(
+  "/guests/:weddingId/confirm",
+  csvUpload.single("file"),
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw new AppError(400, "No file provided");
+    const weddingId = param(req, "weddingId");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const includeRows = parseIncludeRows(req.body.includeRows);
+    const result = await confirmGuestsImport(weddingId, req.file.buffer, includeRows);
     res.json(result);
   })
 );

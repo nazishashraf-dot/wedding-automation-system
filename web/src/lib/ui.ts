@@ -86,6 +86,12 @@ export function vendorLinkStatusTone(status: string): Tone {
   return "neutral"; // contacted
 }
 
+export function guestRsvpTone(status: string): Tone {
+  if (status === "attending") return "sage";
+  if (status === "declined") return "rose";
+  return "gold"; // pending
+}
+
 export function paymentStatusTone(status: string, overdue: boolean): Tone {
   if (status === "paid") return "sage";
   if (overdue) return "rose";

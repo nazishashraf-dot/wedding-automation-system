@@ -571,6 +571,60 @@ export const createVendor = (data: {
 }) => request<Vendor>("/vendors", { method: "POST", body: JSON.stringify(data) });
 export const deleteVendor = (id: string) => request<void>(`/vendors/${id}`, { method: "DELETE" });
 
+// Guests
+export type GuestRsvpStatus = "pending" | "attending" | "declined";
+
+export interface Guest {
+  id: string;
+  weddingId: string;
+  fullName: string;
+  partySize: number;
+  rsvpStatus: GuestRsvpStatus;
+  mealChoice: string | null;
+  tableAssignment: string | null;
+  contactEmail: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GuestSummary {
+  totalInvited: number;
+  attending: number;
+  declined: number;
+  pending: number;
+  guestCount: number;
+}
+
+export const listWeddingGuests = (weddingId: string) => request<Guest[]>(`/weddings/${weddingId}/guests`);
+export const getGuestSummary = (weddingId: string) =>
+  request<GuestSummary>(`/weddings/${weddingId}/guests/summary`);
+export const createWeddingGuest = (
+  weddingId: string,
+  data: {
+    fullName: string;
+    partySize?: number;
+    rsvpStatus?: GuestRsvpStatus;
+    mealChoice?: string;
+    tableAssignment?: string;
+    contactEmail?: string;
+    notes?: string;
+  }
+) => request<Guest>(`/weddings/${weddingId}/guests`, { method: "POST", body: JSON.stringify(data) });
+export const updateGuest = (
+  id: string,
+  data: Partial<{
+    fullName: string;
+    partySize: number;
+    rsvpStatus: GuestRsvpStatus;
+    mealChoice: string;
+    tableAssignment: string;
+    contactEmail: string;
+    notes: string;
+  }>
+) => request<Guest>(`/guests/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteGuest = (id: string) => request<void>(`/guests/${id}`, { method: "DELETE" });
+
 // CSV import (clients + vendors) — preview never writes to the database;
 // confirm re-validates server-side against the same uploaded file rather
 // than trusting whatever the browser last saw.
@@ -630,4 +684,25 @@ export const confirmVendorsImport = (file: File, includeRows: number[]) => {
   formData.append("file", file);
   formData.append("includeRows", JSON.stringify(includeRows));
   return postFormData<VendorImportSummary>("/import/vendors/confirm", formData);
+};
+
+export interface GuestImportSummary {
+  totalRows: number;
+  imported: number;
+  skippedDuplicates: number;
+  skippedErrors: number;
+  skippedByChoice: number;
+}
+
+export const previewGuestsImport = (weddingId: string, file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return postFormData<ImportPreviewResult>(`/import/guests/${weddingId}/preview`, formData);
+};
+
+export const confirmGuestsImport = (weddingId: string, file: File, includeRows: number[]) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("includeRows", JSON.stringify(includeRows));
+  return postFormData<GuestImportSummary>(`/import/guests/${weddingId}/confirm`, formData);
 };

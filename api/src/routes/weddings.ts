@@ -100,6 +100,18 @@ const createPaymentSchema = z
     path: ["vendorId"],
   });
 
+const guestRsvpStatusEnum = z.enum(["pending", "attending", "declined"]);
+
+const createGuestSchema = z.object({
+  fullName: z.string().min(1, "fullName is required"),
+  partySize: z.coerce.number().int().positive().optional(),
+  rsvpStatus: guestRsvpStatusEnum.optional(),
+  mealChoice: z.string().optional(),
+  tableAssignment: z.string().optional(),
+  contactEmail: z.string().email().optional(),
+  notes: z.string().optional(),
+});
+
 const weddingDetailInclude = {
   client: true,
   vendors: {
@@ -208,9 +220,9 @@ router.delete(
     }
 
     // Wedding's child records (tasks, calendar events, email logs, vendor
-    // links, documents) are RESTRICT by default, so they're cleared first —
-    // this deletes the wedding and everything planned under it, but leaves
-    // the client record itself untouched.
+    // links, documents, payments, guests) are RESTRICT by default, so
+    // they're cleared first — this deletes the wedding and everything
+    // planned under it, but leaves the client record itself untouched.
     await prisma.$transaction([
       prisma.emailLog.deleteMany({ where: { weddingId: id } }),
       prisma.calendarEvent.deleteMany({ where: { weddingId: id } }),
@@ -218,6 +230,7 @@ router.delete(
       prisma.weddingVendor.deleteMany({ where: { weddingId: id } }),
       prisma.document.deleteMany({ where: { weddingId: id } }),
       prisma.payment.deleteMany({ where: { weddingId: id } }),
+      prisma.guest.deleteMany({ where: { weddingId: id } }),
       prisma.wedding.delete({ where: { id } }),
     ]);
     res.status(204).send();
@@ -518,6 +531,62 @@ router.post(
       include: { vendor: paymentVendorSelect },
     });
     res.status(201).json(withPaymentOverdueFlag(payment));
+  })
+);
+
+router.get(
+  "/:id/guests",
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const guests = await prisma.guest.findMany({
+      where: { weddingId },
+      orderBy: { fullName: "asc" },
+    });
+    res.json(guests);
+  })
+);
+
+router.post(
+  "/:id/guests",
+  validateBody(createGuestSchema),
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const guest = await prisma.guest.create({ data: { ...req.body, weddingId } });
+    res.status(201).json(guest);
+  })
+);
+
+// Person counts (party-size weighted), not just row counts — much more
+// useful for headcount/catering planning than "12 invites" when those
+// invites actually cover 34 people.
+router.get(
+  "/:id/guests/summary",
+  asyncHandler(async (req, res) => {
+    const weddingId = param(req, "id");
+    const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
+    if (!wedding) throw notFound("Wedding");
+
+    const guests = await prisma.guest.findMany({
+      where: { weddingId },
+      select: { partySize: true, rsvpStatus: true },
+    });
+
+    const sumWhere = (predicate: (status: string) => boolean) =>
+      guests.filter((g) => predicate(g.rsvpStatus)).reduce((sum, g) => sum + g.partySize, 0);
+
+    res.json({
+      totalInvited: guests.reduce((sum, g) => sum + g.partySize, 0),
+      attending: sumWhere((s) => s === "attending"),
+      declined: sumWhere((s) => s === "declined"),
+      pending: sumWhere((s) => s === "pending"),
+      guestCount: guests.length,
+    });
   })
 );
 

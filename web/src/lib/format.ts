@@ -87,6 +87,12 @@ export function formatOverdue(daysOverdue: number): string {
   return `${daysOverdue} days overdue`;
 }
 
+export function guestRsvpLabel(status: string): string {
+  if (status === "attending") return "Attending";
+  if (status === "declined") return "Declined";
+  return "Pending";
+}
+
 export function paymentStatusLabel(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }

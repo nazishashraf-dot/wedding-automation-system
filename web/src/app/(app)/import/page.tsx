@@ -6,18 +6,21 @@ import { useSearchParams } from "next/navigation";
 import {
   ApiError,
   ClientImportSummary,
+  GuestImportSummary,
   ImportPreviewResult,
   VendorImportSummary,
   confirmClientsImport,
+  confirmGuestsImport,
   confirmVendorsImport,
   previewClientsImport,
+  previewGuestsImport,
   previewVendorsImport,
 } from "@/lib/api";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, guestRsvpLabel } from "@/lib/format";
 import Badge from "@/components/Badge";
 import { btnPrimary, btnPrimarySm, btnSecondary, btnSecondarySm, cardClass } from "@/lib/ui";
 
-type ImportKind = "clients" | "vendors";
+type ImportKind = "clients" | "vendors" | "guests";
 type Step = "upload" | "preview" | "result";
 
 interface ColumnConfig {
@@ -45,6 +48,15 @@ const VENDOR_COLUMNS: ColumnConfig[] = [
   { key: "notes", label: "Notes" },
 ];
 
+const GUEST_COLUMNS: ColumnConfig[] = [
+  { key: "fullName", label: "Name" },
+  { key: "partySize", label: "Party Size" },
+  { key: "rsvpStatus", label: "RSVP", format: (v) => guestRsvpLabel(String(v ?? "pending")) },
+  { key: "mealChoice", label: "Meal" },
+  { key: "tableAssignment", label: "Table" },
+  { key: "contactEmail", label: "Email" },
+];
+
 function formatCell(value: string | number | null, format?: ColumnConfig["format"]): string {
   if (format) return format(value);
   if (value === null || value === undefined || value === "") return "—";
@@ -53,7 +65,10 @@ function formatCell(value: string | number | null, format?: ColumnConfig["format
 
 function ImportPageInner() {
   const searchParams = useSearchParams();
-  const initialKind: ImportKind = searchParams.get("type") === "vendors" ? "vendors" : "clients";
+  const typeParam = searchParams.get("type");
+  const initialKind: ImportKind =
+    typeParam === "vendors" ? "vendors" : typeParam === "guests" ? "guests" : "clients";
+  const weddingId = searchParams.get("weddingId");
 
   const [kind, setKind] = useState<ImportKind>(initialKind);
   const [step, setStep] = useState<Step>("upload");
@@ -64,10 +79,33 @@ function ImportPageInner() {
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
   const [includedRows, setIncludedRows] = useState<Set<number>>(new Set());
   const [confirming, setConfirming] = useState(false);
-  const [summary, setSummary] = useState<ClientImportSummary | VendorImportSummary | null>(null);
+  const [summary, setSummary] = useState<
+    ClientImportSummary | VendorImportSummary | GuestImportSummary | null
+  >(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const columns = kind === "clients" ? CLIENT_COLUMNS : VENDOR_COLUMNS;
+  const columns =
+    kind === "clients" ? CLIENT_COLUMNS : kind === "vendors" ? VENDOR_COLUMNS : GUEST_COLUMNS;
+
+  // Guest import is always scoped to one wedding, reached via that
+  // wedding's Guest List section — it isn't a browsable top-level
+  // destination like Clients/Vendors, so there's nothing sensible to do
+  // without a weddingId.
+  if (kind === "guests" && !weddingId) {
+    return (
+      <div className="space-y-6">
+        <h1 className="font-heading text-4xl font-semibold text-wine-600 sm:text-5xl">
+          Import from CSV
+        </h1>
+        <section className={cardClass}>
+          <p className="text-sm text-plum-600">
+            Guest imports are started from a specific wedding — open a wedding&apos;s detail page
+            and use the &ldquo;Import from CSV&rdquo; button in its Guest List section.
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   function handleStartOver() {
     setFile(null);
@@ -95,7 +133,9 @@ function ImportPageInner() {
       const result =
         kind === "clients"
           ? await previewClientsImport(selected)
-          : await previewVendorsImport(selected);
+          : kind === "vendors"
+            ? await previewVendorsImport(selected)
+            : await previewGuestsImport(weddingId!, selected);
       setPreview(result);
       setIncludedRows(
         new Set(result.rows.filter((r) => r.importable && !r.isDuplicate).map((r) => r.rowNumber))
@@ -144,7 +184,9 @@ function ImportPageInner() {
       const result =
         kind === "clients"
           ? await confirmClientsImport(file, Array.from(includedRows))
-          : await confirmVendorsImport(file, Array.from(includedRows));
+          : kind === "vendors"
+            ? await confirmVendorsImport(file, Array.from(includedRows))
+            : await confirmGuestsImport(weddingId!, file, Array.from(includedRows));
       setSummary(result);
       setStep("result");
     } catch (err) {
@@ -161,27 +203,34 @@ function ImportPageInner() {
           Import from CSV
         </h1>
         <p className="mt-2 text-sm text-plum-400">
-          Bring existing clients or vendors in from a spreadsheet export — nothing is saved until
-          you review and confirm.
+          {kind === "guests"
+            ? "Bring this wedding's guest list in from a spreadsheet export — nothing is saved until you review and confirm."
+            : "Bring existing clients or vendors in from a spreadsheet export — nothing is saved until you review and confirm."}
         </p>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => handleKindChange("clients")}
-          className={kind === "clients" ? btnPrimarySm : btnSecondarySm}
-        >
-          Clients
-        </button>
-        <button
-          type="button"
-          onClick={() => handleKindChange("vendors")}
-          className={kind === "vendors" ? btnPrimarySm : btnSecondarySm}
-        >
-          Vendors
-        </button>
-      </div>
+      {kind === "guests" ? (
+        <Link href={`/weddings/${weddingId}`} className={btnSecondarySm}>
+          ← Back to Wedding
+        </Link>
+      ) : (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => handleKindChange("clients")}
+            className={kind === "clients" ? btnPrimarySm : btnSecondarySm}
+          >
+            Clients
+          </button>
+          <button
+            type="button"
+            onClick={() => handleKindChange("vendors")}
+            className={kind === "vendors" ? btnPrimarySm : btnSecondarySm}
+          >
+            Vendors
+          </button>
+        </div>
+      )}
 
       {step === "upload" && (
         <section className={cardClass}>
@@ -211,7 +260,8 @@ function ImportPageInner() {
             ) : (
               <p className="text-sm text-plum-400">
                 <span className="font-medium text-wine-500">Click to upload</span> or drag and
-                drop a .csv export of your {kind === "clients" ? "clients" : "vendors"}.
+                drop a .csv export of your{" "}
+                {kind === "clients" ? "clients" : kind === "vendors" ? "vendors" : "guest list"}.
               </p>
             )}
           </div>
@@ -319,7 +369,7 @@ function ImportPageInner() {
         <section className={cardClass}>
           <h2 className="font-heading text-2xl font-semibold text-wine-600">Import complete</h2>
           <p className="mt-3 text-sm leading-relaxed text-plum-600">
-            {summary.imported} {kind === "clients" ? "client" : "vendor"}
+            {summary.imported} {kind === "clients" ? "client" : kind === "vendors" ? "vendor" : "guest"}
             {summary.imported === 1 ? "" : "s"} imported
             {"weddingsCreated" in summary && summary.weddingsCreated > 0
               ? ` (${summary.weddingsCreated} wedding${summary.weddingsCreated === 1 ? "" : "s"} created)`
@@ -333,8 +383,11 @@ function ImportPageInner() {
             .
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Link href={kind === "clients" ? "/clients" : "/vendors"} className={btnPrimary}>
-              View {kind === "clients" ? "Clients" : "Vendors"}
+            <Link
+              href={kind === "clients" ? "/clients" : kind === "vendors" ? "/vendors" : `/weddings/${weddingId}`}
+              className={btnPrimary}
+            >
+              {kind === "guests" ? "Back to Wedding" : `View ${kind === "clients" ? "Clients" : "Vendors"}`}
             </Link>
             <button type="button" onClick={handleStartOver} className={btnSecondary}>
               Import Another File
