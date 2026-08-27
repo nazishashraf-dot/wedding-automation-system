@@ -1,4 +1,5 @@
 import { prisma } from "../db";
+import { normalizeTableAssignment } from "../utils";
 import { buildColumnMap, parseCsv } from "./csv";
 
 const GUEST_FIELD_ALIASES: Record<string, string[]> = {
@@ -73,7 +74,8 @@ export async function previewGuestsCsv(weddingId: string, buffer: Buffer): Promi
     const fullName = columnMap.fullName ? row[columnMap.fullName] ?? "" : "";
     const contactEmail = columnMap.contactEmail ? row[columnMap.contactEmail] || null : null;
     const mealChoice = columnMap.mealChoice ? row[columnMap.mealChoice] || null : null;
-    const tableAssignment = columnMap.tableAssignment ? row[columnMap.tableAssignment] || null : null;
+    const rawTableAssignment = columnMap.tableAssignment ? row[columnMap.tableAssignment] || null : null;
+    const tableAssignment = rawTableAssignment ? normalizeTableAssignment(rawTableAssignment) : null;
     const notes = columnMap.notes ? row[columnMap.notes] || null : null;
 
     if (!fullName) errors.push("Missing guest name");

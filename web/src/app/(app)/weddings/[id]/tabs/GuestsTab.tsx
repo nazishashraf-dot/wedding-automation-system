@@ -16,15 +16,19 @@ import {
 import SectionHeading from "@/components/SectionHeading";
 import DeleteButton from "@/components/DeleteButton";
 import {
+  bareTableAssignment,
   btnPrimary,
   btnPrimarySm,
   btnSecondarySm,
   cardClass,
+  formatTableAssignment,
   guestRsvpTone,
   inputClass,
   selectSmClass,
   selectToneClasses,
 } from "@/lib/ui";
+
+type GuestEditableField = "mealChoice" | "tableAssignment";
 
 export default function GuestsTab({
   weddingId,
@@ -42,6 +46,11 @@ export default function GuestsTab({
   const [guestMealChoice, setGuestMealChoice] = useState("");
   const [guestTableAssignment, setGuestTableAssignment] = useState("");
   const [addingGuest, setAddingGuest] = useState(false);
+  const [editingCell, setEditingCell] = useState<{
+    guestId: string;
+    field: GuestEditableField;
+  } | null>(null);
+  const [editingValue, setEditingValue] = useState("");
 
   async function refreshGuests() {
     try {
@@ -101,6 +110,76 @@ export default function GuestsTab({
     } catch (err) {
       setGuestError(err instanceof ApiError ? err.message : "Failed to update RSVP");
     }
+  }
+
+  function startEditCell(guestId: string, field: GuestEditableField, currentValue: string) {
+    setEditingCell({ guestId, field });
+    setEditingValue(currentValue);
+  }
+
+  function cancelEditCell() {
+    setEditingCell(null);
+    setEditingValue("");
+  }
+
+  async function commitEditCell() {
+    if (!editingCell) return;
+    const { guestId, field } = editingCell;
+    const value = editingValue.trim();
+    setEditingCell(null);
+    try {
+      const payload: Partial<Record<GuestEditableField, string>> = {};
+      payload[field] = value;
+      await updateGuest(guestId, payload);
+      await refreshGuests();
+    } catch (err) {
+      setGuestError(
+        err instanceof ApiError
+          ? err.message
+          : `Failed to update ${field === "mealChoice" ? "meal choice" : "table assignment"}`
+      );
+    }
+  }
+
+  function handleEditKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEditCell();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelEditCell();
+    }
+  }
+
+  function editableGuestField(
+    g: Guest,
+    field: GuestEditableField,
+    displayValue: string,
+    seedValue: string
+  ) {
+    const isEditing = editingCell?.guestId === g.id && editingCell.field === field;
+    if (isEditing) {
+      return (
+        <input
+          autoFocus
+          className={`${inputClass} w-28 py-1 text-xs`}
+          value={editingValue}
+          onChange={(e) => setEditingValue(e.target.value)}
+          onKeyDown={handleEditKeyDown}
+          onBlur={commitEditCell}
+        />
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => startEditCell(g.id, field, seedValue)}
+        className="rounded px-1 py-0.5 text-left decoration-dotted transition-colors hover:bg-ivory-100 hover:underline"
+        title="Click to edit"
+      >
+        {displayValue || "—"}
+      </button>
+    );
   }
 
   async function handleDeleteGuest(guestId: string) {
@@ -210,9 +289,19 @@ export default function GuestsTab({
                   <p className="font-medium text-plum">{g.fullName}</p>
                   <span className="text-xs text-plum-400">Party of {g.partySize}</span>
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-plum-400">
-                  {g.mealChoice && <span>Meal: {g.mealChoice}</span>}
-                  {g.tableAssignment && <span>Table: {g.tableAssignment}</span>}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-plum-400">
+                  <span className="flex items-center gap-1">
+                    Meal: {editableGuestField(g, "mealChoice", g.mealChoice ?? "", g.mealChoice ?? "")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    Table:{" "}
+                    {editableGuestField(
+                      g,
+                      "tableAssignment",
+                      bareTableAssignment(g.tableAssignment),
+                      bareTableAssignment(g.tableAssignment)
+                    )}
+                  </span>
                 </div>
                 <div className="mt-2.5 flex items-center justify-between gap-3">
                   <select
@@ -259,8 +348,17 @@ export default function GuestsTab({
                         <option value="declined">Declined</option>
                       </select>
                     </td>
-                    <td className="px-3 py-2 text-plum-600">{g.mealChoice ?? "—"}</td>
-                    <td className="px-3 py-2 text-plum-600">{g.tableAssignment ?? "—"}</td>
+                    <td className="px-3 py-2 text-plum-600">
+                      {editableGuestField(g, "mealChoice", g.mealChoice ?? "", g.mealChoice ?? "")}
+                    </td>
+                    <td className="px-3 py-2 text-plum-600">
+                      {editableGuestField(
+                        g,
+                        "tableAssignment",
+                        formatTableAssignment(g.tableAssignment),
+                        bareTableAssignment(g.tableAssignment)
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       {isOwner && <DeleteButton onDelete={() => handleDeleteGuest(g.id)} />}
                     </td>

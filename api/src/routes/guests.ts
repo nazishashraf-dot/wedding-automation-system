@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { asyncHandler, notFound, validateBody } from "../errors";
 import { requireOwner } from "../middleware/auth";
-import { param } from "../utils";
+import { normalizeTableAssignment, param } from "../utils";
 
 const router = Router();
 
@@ -27,7 +27,10 @@ router.patch(
     const existing = await prisma.guest.findUnique({ where: { id } });
     if (!existing) throw notFound("Guest");
 
-    const guest = await prisma.guest.update({ where: { id }, data: req.body });
+    const data = { ...req.body };
+    if (data.tableAssignment) data.tableAssignment = normalizeTableAssignment(data.tableAssignment);
+
+    const guest = await prisma.guest.update({ where: { id }, data });
     res.json(guest);
   })
 );

@@ -3,7 +3,13 @@ import { z } from "zod";
 import { prisma } from "../db";
 import { AppError, asyncHandler, notFound, validateBody } from "../errors";
 import { requireOwner } from "../middleware/auth";
-import { getFrontendUrl, param, withOverdueFlag, withPaymentOverdueFlag } from "../utils";
+import {
+  getFrontendUrl,
+  normalizeTableAssignment,
+  param,
+  withOverdueFlag,
+  withPaymentOverdueFlag,
+} from "../utils";
 import { generateTimelineForWedding, recalculateAutoTaskDueDates } from "../timeline";
 import { pushCalendarEventCreate } from "../googleCalendar";
 import { TemplateNotFoundError, sendTemplatedEmail } from "../email";
@@ -557,7 +563,15 @@ router.post(
     const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
     if (!wedding) throw notFound("Wedding");
 
-    const guest = await prisma.guest.create({ data: { ...req.body, weddingId } });
+    const guest = await prisma.guest.create({
+      data: {
+        ...req.body,
+        weddingId,
+        tableAssignment: req.body.tableAssignment
+          ? normalizeTableAssignment(req.body.tableAssignment)
+          : req.body.tableAssignment,
+      },
+    });
     res.status(201).json(guest);
   })
 );

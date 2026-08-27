@@ -92,6 +92,22 @@ export function guestRsvpTone(status: string): Tone {
   return "gold"; // pending
 }
 
+// Some rows were created/imported with the "Table" prefix baked into the
+// stored text (e.g. "Table 6") while others just have the bare identifier
+// ("6"). Strip any existing prefix before redisplaying so every row reads
+// consistently regardless of how it was originally entered.
+export function bareTableAssignment(tableAssignment: string | null): string {
+  if (!tableAssignment) return "";
+  const trimmed = tableAssignment.trim();
+  const stripped = trimmed.replace(/^table\s*[:#-]?\s*/i, "").trim();
+  return stripped || trimmed;
+}
+
+export function formatTableAssignment(tableAssignment: string | null): string {
+  const bare = bareTableAssignment(tableAssignment);
+  return bare ? `Table ${bare}` : "—";
+}
+
 export function paymentStatusTone(status: string, overdue: boolean): Tone {
   if (status === "paid") return "sage";
   if (overdue) return "rose";
