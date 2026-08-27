@@ -210,7 +210,7 @@ function ImportPageInner() {
       </div>
 
       {kind === "guests" ? (
-        <Link href={`/weddings/${weddingId}`} className={btnSecondarySm}>
+        <Link href={`/weddings/${weddingId}?tab=guests`} className={btnSecondarySm}>
           ← Back to Wedding
         </Link>
       ) : (
@@ -384,7 +384,13 @@ function ImportPageInner() {
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link
-              href={kind === "clients" ? "/clients" : kind === "vendors" ? "/vendors" : `/weddings/${weddingId}`}
+              href={
+                kind === "clients"
+                  ? "/clients"
+                  : kind === "vendors"
+                    ? "/vendors"
+                    : `/weddings/${weddingId}?tab=guests`
+              }
               className={btnPrimary}
             >
               {kind === "guests" ? "Back to Wedding" : `View ${kind === "clients" ? "Clients" : "Vendors"}`}
